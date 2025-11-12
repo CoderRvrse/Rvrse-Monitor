@@ -24,29 +24,23 @@ Future hooks (Phase 2):
 
 ## Data Views
 
-- `RvrseProcessSnapshotView` – opaque pointer/count pair referencing the current process entries. Actual structures live inside `src/core`; plugins treat them as read-only and must not retain pointers past the callback.
-- `RvrseHandleSnapshotView` – similar pattern for handles.
-- Additional views (modules, services, network) will join as the core layer exposes them.
+- `RvrseProcessSnapshotView` – lightweight description of all processes; each entry surfaces PIDs, memory counters, timing info, and an array of `RvrseThreadInfo`.
+- `RvrseHandleSnapshotView` – flattened handle list with owning PID, type indices, and granted access rights.
+- Treat both views as read-only and ephemeral; do not store pointers once the callback returns. Additional views (modules, services, network) will join as the core layer exposes them.
 
 ## Callback Table
 
-`RvrsePluginCallbacks` currently exposes:
+- `RvrsePluginHooks` (returned by plugins) currently exposes:
+  - `OnProcessSnapshot` – invoked after each snapshot capture (UI refresh cadence).
+  - `OnHandleSnapshot` – invoked alongside handle captures.
+- `RvrseHostServices` (provided by the host) currently only includes a placeholder `RegisterMenuItem` stub; future iterations will route UI commands through this surface.
 
-- `OnProcessSnapshot` – invoked after each snapshot capture (UI refresh cadence).
-- `OnHandleSnapshot` – invoked alongside handle captures.
-- `RegisterMenuItem` – placeholder for upcoming UI integration; accepts a hierarchical menu path and a callback invoked with the selected process ID.
-
-Plugins should treat callbacks as optional: check for `nullptr` before invoking.
+Plugins should treat all callbacks as optional: check for `nullptr` before invoking and avoid storing snapshot pointers beyond the scope of the call.
 
 ## Loader Plan
 
-1. Implement `PluginLoader` in `src/core` that:
-   - Scans `plugins/` (or `%PROGRAMDATA%\RvrseMonitor\Plugins`) for DLLs.
-   - Loads each DLL with `LoadLibraryEx`.
-   - Resolves `RvrsePluginInitialize`/`RvrsePluginShutdown`.
-   - Passes a callback table with safe wrappers.
-   - Tracks loaded plugins for later unload.
-2. Provide a sample plugin under `src/plugins/sample_logger` demonstrating logging snapshots to a file.
+1. `PluginLoader` (`src/core/plugin_loader.*`) scans `build\<Config>\plugins` for DLLs, loads them, validates the ABI version, and dispatches process/handle snapshots after each refresh.
+2. Sample plugin: `src/plugins/sample_logger` builds into `build\<Config>\plugins\SampleLogger.dll` and logs snapshot counts to `sample_logger.log`.
 3. Expose plugin enable/disable controls in the UI (Phase 2).
 
 ## Safety Considerations
@@ -60,7 +54,7 @@ Plugins should treat callbacks as optional: check for `nullptr` before invoking.
 
 ## Next Steps
 
-1. Finalize `plugin_api.h` structure definitions (may need forward declarations once core structs are exposed).
-2. Build the loader skeleton and wire it into the main app startup.
-3. Author `sample_logger` plugin and accompanying documentation.
-4. Expand tests to cover loader edge cases (e.g., invalid DLLs, failed initialization).
+1. Expand `plugin_api.h` as additional data (modules, services, etc.) becomes available.
+2. Wire UI controls to host services (menu items, commands) instead of the current stub.
+3. Add automated tests that exercise real plugins in a temporary directory.
+4. Document best practices for plugin authors (threading, logging, error handling).

@@ -43,3 +43,9 @@ See `docs/build/local-project.md` for full details once populated.
 - `docs/testing.md` – testing strategy, coverage expectations, benchmark guidance, and manual QA checklist.
 - `docs/contributing.md` – onboarding, workflow, coding standards, and PR checklist.
 - `docs/plugins.md` – plugin ABI roadmap, entry points, and loader plans.
+
+## Plugins
+
+- Runtime plugins live under `build\<Config>\plugins\`. The solution currently builds `SampleLogger.dll`, which subscribes to process/handle snapshots and writes basic telemetry to `sample_logger.log`.
+- Implement new plugins by referencing `include/rvrse/plugin_api.h` and exporting `RvrsePluginInitialize` / `RvrsePluginShutdown`.
+- The host automatically loads plugins at startup and broadcasts snapshots after each refresh; future iterations will expose additional host services (menu registration, commands).

@@ -12,6 +12,7 @@
 
 #include "process_snapshot.h"
 #include "handle_snapshot.h"
+#include "plugin_loader.h"
 #include "rvrse/common/formatting.h"
 #include "rvrse/common/string_utils.h"
 #include "rvrse/common/time_utils.h"
@@ -418,6 +419,18 @@ namespace
             ReportFailure(L"UTF-8 conversion performance regression detected.");
         }
     }
+
+    void TestPluginLoaderInitialization()
+    {
+        rvrse::core::PluginLoader loader(L".\\nonexistent_plugins_path");
+        loader.LoadPlugins();
+
+        auto snapshot = rvrse::core::ProcessSnapshot::Capture();
+        auto handles = rvrse::core::HandleSnapshot::Capture();
+
+        loader.BroadcastProcessSnapshot(snapshot);
+        loader.BroadcastHandleSnapshot(handles);
+    }
 }
 
 int wmain()
@@ -435,6 +448,7 @@ int wmain()
     BenchmarkProcessSnapshot();
     BenchmarkHandleSnapshot();
     BenchmarkUtf8Conversion();
+    TestPluginLoaderInitialization();
 
     if (g_failures == 0)
     {

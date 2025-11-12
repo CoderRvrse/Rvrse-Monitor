@@ -6,6 +6,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RvrseMonitorApp", "src\app\
 	ProjectSection(ProjectDependencies) = postProject
 		{CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B} = {CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B}
 		{7CDB4A0E-707D-4561-87AA-40697771B356} = {7CDB4A0E-707D-4561-87AA-40697771B356}
+		{D6D61ECA-3375-4B54-9C67-097C69EBFA21} = {D6D61ECA-3375-4B54-9C67-097C69EBFA21}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RvrseCore", "src\core\RvrseCore.vcxproj", "{CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B}"
@@ -13,6 +14,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RvrseCommon", "src\common\RvrseCommon.vcxproj", "{7CDB4A0E-707D-4561-87AA-40697771B356}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RvrseMonitorTests", "tests\RvrseMonitorTests.vcxproj", "{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SampleLogger", "src\plugins\sample_logger\sample_logger.vcxproj", "{D6D61ECA-3375-4B54-9C67-097C69EBFA21}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -36,6 +39,10 @@ Global
 		{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}.Debug|x64.Build.0 = Debug|x64
 		{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}.Release|x64.ActiveCfg = Release|x64
 		{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}.Release|x64.Build.0 = Release|x64
+		{D6D61ECA-3375-4B54-9C67-097C69EBFA21}.Debug|x64.ActiveCfg = Debug|x64
+		{D6D61ECA-3375-4B54-9C67-097C69EBFA21}.Debug|x64.Build.0 = Debug|x64
+		{D6D61ECA-3375-4B54-9C67-097C69EBFA21}.Release|x64.ActiveCfg = Release|x64
+		{D6D61ECA-3375-4B54-9C67-097C69EBFA21}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

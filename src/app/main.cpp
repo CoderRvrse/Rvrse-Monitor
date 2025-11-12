@@ -7,6 +7,7 @@
 #include <array>
 #include <cwchar>
 #include <cwctype>
+#include <memory>
 #include <numeric>
 #include <sstream>
 #include <string>
@@ -16,6 +17,7 @@
 #include "rvrse/common/formatting.h"
 #include "process_snapshot.h"
 #include "handle_snapshot.h"
+#include "plugin_loader.h"
 
 #pragma comment(lib, "Comctl32.lib")
 
@@ -136,6 +138,12 @@ namespace
 
         void OnCreate()
         {
+            if (!pluginLoader_)
+            {
+                pluginLoader_ = std::make_unique<rvrse::core::PluginLoader>();
+                pluginLoader_->LoadPlugins();
+            }
+
             INITCOMMONCONTROLSEX icex = {sizeof(icex)};
             icex.dwICC = ICC_LISTVIEW_CLASSES;
             InitCommonControlsEx(&icex);
@@ -218,6 +226,11 @@ namespace
             if (hwnd_)
             {
                 KillTimer(hwnd_, kRefreshTimerId);
+            }
+
+            if (pluginLoader_)
+            {
+                pluginLoader_->UnloadPlugins();
             }
         }
 
@@ -313,6 +326,13 @@ namespace
         {
             snapshot_ = rvrse::core::ProcessSnapshot::Capture();
             handleSnapshot_ = rvrse::core::HandleSnapshot::Capture();
+
+            if (pluginLoader_)
+            {
+                pluginLoader_->BroadcastProcessSnapshot(snapshot_);
+                pluginLoader_->BroadcastHandleSnapshot(handleSnapshot_);
+            }
+
             ApplyFilterAndSort();
             UpdateDetailsPanel();
         }
@@ -602,6 +622,7 @@ namespace
         std::wstring filterText_;
         int sortColumn_ = 0;
         bool sortAscending_ = true;
+        std::unique_ptr<rvrse::core::PluginLoader> pluginLoader_;
     };
 }
 

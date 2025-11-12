@@ -15,12 +15,18 @@
     <ClCompile Include="process_snapshot.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="plugin_loader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="handle_snapshot.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="process_snapshot.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="plugin_loader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
