@@ -42,3 +42,4 @@ See `docs/build/local-project.md` for full details once populated.
 - `docs/build/local-project.md` – detailed local build instructions.
 - `docs/testing.md` – testing strategy, coverage expectations, benchmark guidance, and manual QA checklist.
 - `docs/contributing.md` – onboarding, workflow, coding standards, and PR checklist.
+- `docs/plugins.md` – plugin ABI roadmap, entry points, and loader plans.
