@@ -1,0 +1,1 @@
+# Plugins`n`nSample extensions plus the SDK headers for third parties.

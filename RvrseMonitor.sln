@@ -1,0 +1,46 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33424.131
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RvrseMonitorApp", "src\app\RvrseMonitorApp.vcxproj", "{37F24A3D-5684-4C66-9F18-30258BDF6E12}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B} = {CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B}
+		{7CDB4A0E-707D-4561-87AA-40697771B356} = {7CDB4A0E-707D-4561-87AA-40697771B356}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RvrseCore", "src\core\RvrseCore.vcxproj", "{CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RvrseCommon", "src\common\RvrseCommon.vcxproj", "{7CDB4A0E-707D-4561-87AA-40697771B356}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RvrseMonitorTests", "tests\RvrseMonitorTests.vcxproj", "{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{37F24A3D-5684-4C66-9F18-30258BDF6E12}.Debug|x64.ActiveCfg = Debug|x64
+		{37F24A3D-5684-4C66-9F18-30258BDF6E12}.Debug|x64.Build.0 = Debug|x64
+		{37F24A3D-5684-4C66-9F18-30258BDF6E12}.Release|x64.ActiveCfg = Release|x64
+		{37F24A3D-5684-4C66-9F18-30258BDF6E12}.Release|x64.Build.0 = Release|x64
+		{CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B}.Debug|x64.ActiveCfg = Debug|x64
+		{CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B}.Debug|x64.Build.0 = Debug|x64
+		{CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B}.Release|x64.ActiveCfg = Release|x64
+		{CB4EF11C-7887-42B2-9FA6-C8CF37DDFE6B}.Release|x64.Build.0 = Release|x64
+		{7CDB4A0E-707D-4561-87AA-40697771B356}.Debug|x64.ActiveCfg = Debug|x64
+		{7CDB4A0E-707D-4561-87AA-40697771B356}.Debug|x64.Build.0 = Debug|x64
+		{7CDB4A0E-707D-4561-87AA-40697771B356}.Release|x64.ActiveCfg = Release|x64
+		{7CDB4A0E-707D-4561-87AA-40697771B356}.Release|x64.Build.0 = Release|x64
+		{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}.Debug|x64.ActiveCfg = Debug|x64
+		{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}.Debug|x64.Build.0 = Debug|x64
+		{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}.Release|x64.ActiveCfg = Release|x64
+		{8A9F6909-2A1B-4AAF-9B29-9B67E4C4BF3B}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B0C8B187-A213-44F1-9FF4-BE8F9CC707B5}
+	EndGlobalSection
+EndGlobal

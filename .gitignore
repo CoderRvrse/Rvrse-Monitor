@@ -1,0 +1,104 @@
+# Visual Studio build outputs
+build/
+x64/
+Debug/
+Release/
+*.user
+*.suo
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache/options
+.vs/
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.VC.opendb
+
+# Visual Studio profiler
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Build outputs
+*.ilk
+*.pdb
+*.exp
+*.lib
+*.obj
+*.iobj
+*.ipdb
+*.tlog
+*.log
+*.lastbuildstate
+
+# Intermediate directories
+ipch/
+*.aps
+*.ncb
+*.sdf
+*.opensdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# NCrunch
+_NCrunch_*
+.*crunch*.local.xml
+nCrunchTemp_*
+
+# Backup & report files
+*.bak
+*.cache
+*.ilk
+*.log
+*.sbr
+*.scc
+
+# Other
+*.pidb
+*.svclog
+*.scc
+[Bb]in
+[Dd]ebug
+[Rr]elease
+ipch
+*.opensdf
+*.sdf
+*.suo
+*.user
+
+# Windows specific
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Temporary files
+*.tmp
+*.temp
+nul

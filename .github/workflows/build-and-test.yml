@@ -1,0 +1,49 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  windows-msbuild:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+    env:
+      PLATFORM: x64
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore solution
+        shell: pwsh
+        run: |
+          msbuild RvrseMonitor.sln `
+            /t:Restore `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:Platform=${{ env.PLATFORM }}
+
+      - name: Build ${{ matrix.configuration }}
+        shell: pwsh
+        run: |
+          msbuild RvrseMonitor.sln `
+            /m `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:Platform=${{ env.PLATFORM }} `
+            /p:UseMultiToolTask=true
+
+      - name: Run smoke tests
+        shell: pwsh
+        working-directory: build\${{ matrix.configuration }}
+        run: .\RvrseMonitorTests.exe

@@ -1,0 +1,1 @@
+# Core Layer`n`nLow-level NT/Win32 helpers, process inspection, and data providers live here.
