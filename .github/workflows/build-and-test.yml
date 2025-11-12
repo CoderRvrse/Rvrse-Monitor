@@ -46,7 +46,17 @@ jobs:
       - name: Run smoke tests
         shell: pwsh
         working-directory: build\${{ matrix.configuration }}
-        run: .\RvrseMonitorTests.exe
+        run: |
+          $perfFile = "telemetry\perf-${{ matrix.configuration }}.json"
+          .\RvrseMonitorTests.exe "--build-config=${{ matrix.configuration }}" "--perf-json=$perfFile"
+
+      - name: Upload perf telemetry
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-${{ matrix.configuration }}-${{ github.sha }}
+          path: build/${{ matrix.configuration }}/telemetry/perf-${{ matrix.configuration }}.json
+          if-no-files-found: warn
 
       - name: Install OpenCppCoverage
         if: matrix.configuration == 'Release'

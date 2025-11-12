@@ -42,7 +42,8 @@ if not exist "%TEST_BIN%" (
 )
 
 pushd "%~dp0..\build\%CONFIG%" >NUL
-RvrseMonitorTests.exe
+set "PERF_JSON=telemetry\benchmarks.json"
+RvrseMonitorTests.exe --build-config=%CONFIG% --perf-json="%PERF_JSON%"
 set "TEST_RESULT=%ERRORLEVEL%"
 popd >NUL
 

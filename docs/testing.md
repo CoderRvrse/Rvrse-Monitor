@@ -40,6 +40,14 @@ Use a **Developer Command Prompt for VS** (or any shell where `vcvars64.bat` has
 - `[PERF] …` lines with average timings; treat them as part of the regression history.
 - Non-zero exit code or `[FAIL] …` lines mean the change must be fixed before submission.
 
+## Performance Telemetry Export
+
+- `RvrseMonitorTests.exe` accepts `--perf-json=<path>` to write a JSON summary of every benchmark (avg ms, threshold, pass/fail, iteration count). The optional `--build-config=<name>` flag (or `RVRSE_BUILD_CONFIG`) stamps the metadata so CI dashboards can differentiate Release vs Debug.
+- Equivalent environment variable: set `RVRSE_PERF_JSON` before launching the test binary if you prefer not to pass command-line flags.
+- Example: `RvrseMonitorTests.exe --build-config=Release --perf-json=telemetry\perf-release.json`.
+- `scripts\build_release_local.cmd` now enables this automatically, generating `build\<Config>\telemetry\perf-<Config>.json`.
+- GitHub Actions uploads the same files as artifacts (`perf-<Config>-<commit>.json`) so we can trend performance across runs or plug them into future regression alarms.
+
 ## Coverage Expectations
 
 - Target: **≥70 % combined coverage** across `src/common` and `src/core` before feature freeze.
@@ -66,7 +74,7 @@ Use a **Developer Command Prompt for VS** (or any shell where `vcvars64.bat` has
   - `BenchmarkUtf8Conversion` – 1000 iterations, fail if avg >5 ms for either direction.
 - Keep benchmarks lightweight so they run quickly in CI. Prefer higher iteration counts with smaller workloads over single heavy operations.
 - When changing thresholds, justify the new numbers in the PR description and update this doc.
-- Future plan: export JSON/CSV summaries as CI artifacts (Tier 2.2 of the roadmap).
+- Review the exported telemetry (`build\<Config>\telemetry\perf-<Config>.json`) when validating performance-sensitive changes so you can attach before/after stats to PRs.
 
 ## Manual GUI Checklist
 

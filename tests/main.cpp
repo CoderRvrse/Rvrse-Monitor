@@ -2,13 +2,21 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cwchar>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <limits>
+#include <sstream>
 #include <string>
+#include <system_error>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "process_snapshot.h"
 #include "handle_snapshot.h"
@@ -21,6 +29,141 @@ namespace
 {
     int g_failures = 0;
     LARGE_INTEGER g_qpcFrequency{};
+    std::wstring g_perfExportPath;
+    std::wstring g_buildConfiguration;
+
+    // Forward declarations
+    void ReportFailure(const wchar_t *message);
+
+    struct BenchmarkResult
+    {
+        std::wstring name;
+        double averageMs;
+        double thresholdMs;
+        int iterations;
+        bool passed;
+    };
+
+    std::vector<BenchmarkResult> g_benchmarkResults;
+
+    std::wstring GetEnvironmentVariable(const wchar_t *name)
+    {
+        if (const wchar_t *value = _wgetenv(name))
+        {
+            return value;
+        }
+        return {};
+    }
+
+    std::string FormatDecimal(double value)
+    {
+        std::ostringstream stream;
+        stream << std::fixed << std::setprecision(4) << value;
+        return stream.str();
+    }
+
+    void RecordBenchmarkResult(const wchar_t *name,
+                               double averageMs,
+                               double thresholdMs,
+                               int iterations,
+                               bool passed)
+    {
+        g_benchmarkResults.push_back(
+            BenchmarkResult{
+                std::wstring{name},
+                averageMs,
+                thresholdMs,
+                iterations,
+                passed});
+    }
+
+    bool ExportBenchmarkTelemetry()
+    {
+        if (g_perfExportPath.empty() || g_benchmarkResults.empty())
+        {
+            return true;
+        }
+
+        namespace fs = std::filesystem;
+        fs::path outputPath(g_perfExportPath);
+
+        std::error_code directoryStatus;
+        if (outputPath.has_parent_path())
+        {
+            fs::create_directories(outputPath.parent_path(), directoryStatus);
+            if (directoryStatus)
+            {
+                ReportFailure(L"Failed to create directory for performance telemetry export.");
+                return false;
+            }
+        }
+
+        std::ofstream stream(outputPath, std::ios::binary | std::ios::trunc);
+        if (!stream)
+        {
+            ReportFailure(L"Failed to open performance telemetry output file.");
+            return false;
+        }
+
+        auto now = std::chrono::system_clock::now();
+        auto timestampWide = rvrse::common::FormatTimestamp(now);
+        std::string timestamp = rvrse::common::WideToUtf8(timestampWide);
+        std::replace(timestamp.begin(), timestamp.end(), ' ', 'T');
+        timestamp.append("Z");
+
+        wchar_t computerName[MAX_COMPUTERNAME_LENGTH + 1]{};
+        DWORD computerNameSize = static_cast<DWORD>(std::size(computerName));
+        std::string hostName;
+        if (GetComputerNameW(computerName, &computerNameSize))
+        {
+            hostName = rvrse::common::WideToUtf8(std::wstring(computerName, computerNameSize));
+        }
+
+        stream << "{\n";
+        stream << "  \"metadata\": {\n";
+        stream << "    \"timestamp\": \"" << timestamp << "\"";
+
+        if (!hostName.empty())
+        {
+            stream << ",\n    \"machine\": \"" << hostName << "\"";
+        }
+
+        if (!g_buildConfiguration.empty())
+        {
+            stream << ",\n    \"build_configuration\": \""
+                   << rvrse::common::WideToUtf8(g_buildConfiguration) << "\"";
+        }
+
+        stream << "\n  },\n";
+        stream << "  \"benchmarks\": [\n";
+
+        for (std::size_t index = 0; index < g_benchmarkResults.size(); ++index)
+        {
+            const auto &result = g_benchmarkResults[index];
+            stream << "    {\n";
+            stream << "      \"name\": \"" << rvrse::common::WideToUtf8(result.name) << "\",\n";
+            stream << "      \"iterations\": " << result.iterations << ",\n";
+            stream << "      \"average_ms\": " << FormatDecimal(result.averageMs) << ",\n";
+            stream << "      \"threshold_ms\": " << FormatDecimal(result.thresholdMs) << ",\n";
+            stream << "      \"status\": \"" << (result.passed ? "pass" : "fail") << "\"\n";
+            stream << "    }" << (index + 1 == g_benchmarkResults.size() ? "" : ",") << "\n";
+        }
+
+        stream << "  ]\n";
+        stream << "}\n";
+        stream.flush();
+
+        if (!stream)
+        {
+            ReportFailure(L"Failed while writing performance telemetry output file.");
+            return false;
+        }
+
+        std::fwprintf(stdout,
+                      L"[PERF] Exported telemetry to %s\n",
+                      outputPath.wstring().c_str());
+        return true;
+    }
 
     void ReportFailure(const wchar_t *message)
     {
@@ -350,6 +493,7 @@ namespace
     void BenchmarkProcessSnapshot()
     {
         const int iterations = 5;
+        const double thresholdMs = 150.0;
         double averageMs = MeasureAverageMilliseconds(
             []()
             {
@@ -364,15 +508,23 @@ namespace
             iterations);
 
         std::fwprintf(stdout, L"[PERF] ProcessSnapshot avg: %.2f ms\n", averageMs);
-        if (averageMs > 150.0)
+        const bool passed = averageMs <= thresholdMs;
+        if (!passed)
         {
             ReportFailure(L"ProcessSnapshot performance regression detected.");
         }
+
+        RecordBenchmarkResult(L"ProcessSnapshot",
+                              averageMs,
+                              thresholdMs,
+                              iterations,
+                              passed);
     }
 
     void BenchmarkHandleSnapshot()
     {
         const int iterations = 5;
+        const double thresholdMs = 200.0;
         double averageMs = MeasureAverageMilliseconds(
             []()
             {
@@ -383,10 +535,17 @@ namespace
             iterations);
 
         std::fwprintf(stdout, L"[PERF] HandleSnapshot avg: %.2f ms\n", averageMs);
-        if (averageMs > 200.0)
+        const bool passed = averageMs <= thresholdMs;
+        if (!passed)
         {
             ReportFailure(L"HandleSnapshot performance regression detected.");
         }
+
+        RecordBenchmarkResult(L"HandleSnapshot",
+                              averageMs,
+                              thresholdMs,
+                              iterations,
+                              passed);
     }
 
     void BenchmarkUtf8Conversion()
@@ -414,10 +573,25 @@ namespace
                       toUtf8Ms,
                       toWideMs);
 
-        if (toUtf8Ms > 5.0 || toWideMs > 5.0)
+        const double thresholdMs = 5.0;
+        const bool utf8Passed = toUtf8Ms <= thresholdMs;
+        const bool widePassed = toWideMs <= thresholdMs;
+
+        if (!utf8Passed || !widePassed)
         {
             ReportFailure(L"UTF-8 conversion performance regression detected.");
         }
+
+        RecordBenchmarkResult(L"WideToUtf8",
+                              toUtf8Ms,
+                              thresholdMs,
+                              iterations,
+                              utf8Passed);
+        RecordBenchmarkResult(L"Utf8ToWide",
+                              toWideMs,
+                              thresholdMs,
+                              iterations,
+                              widePassed);
     }
 
     void TestPluginLoaderInitialization()
@@ -433,8 +607,48 @@ namespace
     }
 }
 
-int wmain()
+int wmain(int argc, wchar_t **argv)
 {
+    for (int i = 1; i < argc; ++i)
+    {
+        std::wstring argument = argv[i];
+        const std::wstring perfPrefix = L"--perf-json=";
+        const std::wstring buildPrefix = L"--build-config=";
+
+        if (argument.rfind(perfPrefix, 0) == 0)
+        {
+            g_perfExportPath = argument.substr(perfPrefix.size());
+            continue;
+        }
+
+        if (argument.rfind(buildPrefix, 0) == 0)
+        {
+            g_buildConfiguration = argument.substr(buildPrefix.size());
+            continue;
+        }
+    }
+
+    if (g_perfExportPath.empty())
+    {
+        g_perfExportPath = GetEnvironmentVariable(L"RVRSE_PERF_JSON");
+    }
+
+    if (g_buildConfiguration.empty())
+    {
+        g_buildConfiguration = GetEnvironmentVariable(L"RVRSE_BUILD_CONFIG");
+    }
+
+    if (g_buildConfiguration.empty())
+    {
+        try
+        {
+            g_buildConfiguration = std::filesystem::current_path().filename().wstring();
+        }
+        catch (...)
+        {
+        }
+    }
+
     std::fwprintf(stdout, L"[TEST] Running Rvrse Monitor smoke tests...\n");
 
     TestFormatSize();
@@ -449,6 +663,8 @@ int wmain()
     BenchmarkHandleSnapshot();
     BenchmarkUtf8Conversion();
     TestPluginLoaderInitialization();
+
+    ExportBenchmarkTelemetry();
 
     if (g_failures == 0)
     {
