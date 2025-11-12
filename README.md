@@ -1,4 +1,5 @@
 # Rvrse Monitor
+[![Build and Test](https://github.com/CoderRvrse/Rvrse-Monitor/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/CoderRvrse/Rvrse-Monitor/actions)
 
 Native Windows system monitor inspired by System Informer, built entirely with C/C++ and Visual Studio tooling. The goal is to deliver a legally clean fork that keeps the upstream performance profile while adding new UX and safety features.
 
@@ -26,4 +27,5 @@ See `docs/build/local-project.md` for full details once populated.
 
 - `.github/workflows/build-and-test.yml` runs on GitHub Actions for every push and pull request against `main`, plus manual dispatches.
 - Each job checks out the repository on a `windows-latest` runner, restores dependencies via MSBuild, builds the solution for both `x64|Release` and `x64|Debug`, and runs the `RvrseMonitorTests.exe` smoke tests from `build\<Config>`.
+- Successful Release builds upload the generated `.exe` binaries as workflow artifacts (`RvrseMonitor-Release-<commit>`), which can be downloaded from the run summary for quick manual validation.
 - Use the workflow to validate changes on clean Microsoft-hosted infrastructure without needing a local Visual Studio install.

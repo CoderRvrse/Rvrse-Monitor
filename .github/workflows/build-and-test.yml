@@ -47,3 +47,10 @@ jobs:
         shell: pwsh
         working-directory: build\${{ matrix.configuration }}
         run: .\RvrseMonitorTests.exe
+
+      - name: Upload Release binaries
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RvrseMonitor-Release-${{ github.sha }}
+          path: build/Release/*.exe
