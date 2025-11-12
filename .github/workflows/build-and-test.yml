@@ -58,15 +58,20 @@ jobs:
         id: coverage
         shell: pwsh
         run: |
+          # Refresh PATH to find OpenCppCoverage.exe
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
           $coverageDir = Join-Path $Env:RUNNER_TEMP "coverage"
           New-Item -ItemType Directory -Path $coverageDir -Force | Out-Null
           $coverageFile = Join-Path $coverageDir "coverage.xml"
-          OpenCppCoverage.exe `
+
+          & "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe" `
             --sources src `
             --sources include `
             --export_type cobertura:$coverageFile `
             --working_dir build\Release `
-            --target build\Release\RvrseMonitorTests.exe
+            -- build\Release\RvrseMonitorTests.exe
+
           "coverage_path=$coverageFile" >> $Env:GITHUB_OUTPUT
 
       - name: Upload coverage artifact

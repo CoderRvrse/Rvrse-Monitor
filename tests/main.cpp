@@ -2,6 +2,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cwchar>
 #include <limits>
@@ -11,6 +12,8 @@
 #include "process_snapshot.h"
 #include "handle_snapshot.h"
 #include "rvrse/common/formatting.h"
+#include "rvrse/common/string_utils.h"
+#include "rvrse/common/time_utils.h"
 
 namespace
 {
@@ -78,6 +81,70 @@ namespace
                               test.expected);
                 ReportFailure(buffer);
             }
+        }
+    }
+
+    void TestStringHelpers()
+    {
+        auto trimmed = rvrse::common::TrimWhitespace(L"  Rvrse Monitor \r\n");
+        if (trimmed != L"Rvrse Monitor")
+        {
+            ReportFailure(L"TrimWhitespace failed to remove surrounding whitespace.");
+        }
+
+        auto emptyTrim = rvrse::common::TrimWhitespace(L"\t\n ");
+        if (!emptyTrim.empty())
+        {
+            ReportFailure(L"TrimWhitespace should return empty for whitespace-only strings.");
+        }
+
+        auto lower = rvrse::common::ToLower(L"MixedCase 123");
+        if (lower != L"mixedcase 123")
+        {
+            ReportFailure(L"ToLower failed to convert string.");
+        }
+
+        auto normalized = rvrse::common::NormalizePath(L"c:/temp//sub\\file.txt ");
+        if (normalized != L"C:\\temp\\sub\\file.txt")
+        {
+            ReportFailure(L"NormalizePath did not collapse separators or uppercase drive letter.");
+        }
+
+        const char *utf8Input = u8"Rvrse \u2603";
+        auto wide = rvrse::common::Utf8ToWide(utf8Input);
+        if (wide != L"Rvrse \u2603")
+        {
+            ReportFailure(L"Utf8ToWide failed to convert UTF-8 payload.");
+        }
+
+        auto roundtrip = rvrse::common::WideToUtf8(wide);
+        if (roundtrip != utf8Input)
+        {
+            ReportFailure(L"WideToUtf8 failed round-trip conversion.");
+        }
+    }
+
+    void TestTimeFormatting()
+    {
+        using namespace std::chrono;
+
+        auto duration = rvrse::common::FormatDuration(milliseconds(3723456));
+        if (duration != L"01:02:03.456")
+        {
+            ReportFailure(L"FormatDuration failed for positive span.");
+        }
+
+        auto negative = rvrse::common::FormatDuration(milliseconds(-1890));
+        if (negative != L"-00:00:01.890")
+        {
+            ReportFailure(L"FormatDuration failed for negative span.");
+        }
+
+        system_clock::time_point known = system_clock::time_point(seconds(1609459200));
+        auto timestamp = rvrse::common::FormatTimestamp(known);
+        if (timestamp != L"2021-01-01 00:00:00")
+        {
+            ReportFailure(L"FormatTimestamp did not produce expected UTC time.");
         }
     }
 
@@ -228,6 +295,8 @@ int wmain()
 
     TestFormatSize();
     TestFormatSizeMaxValues();
+    TestStringHelpers();
+    TestTimeFormatting();
     TestProcessSnapshot();
     TestProcessSnapshotEdgeCases();
     TestHandleSnapshot();
