@@ -43,9 +43,17 @@ See `docs/build/local-project.md` for full details once populated.
 - `docs/testing.md` – testing strategy, coverage expectations, benchmark guidance, and manual QA checklist.
 - `docs/contributing.md` – onboarding, workflow, coding standards, and PR checklist.
 - `docs/plugins.md` – plugin ABI roadmap, entry points, and loader plans.
+- `docs/releases.md` – versioning rules, packaging instructions, and GitHub Release automation.
+- `CHANGELOG.md` – Keep-a-Changelog history that tracks every notable feature tier.
 
 ## Plugins
 
 - Runtime plugins live under `build\<Config>\plugins\`. The solution currently builds `SampleLogger.dll`, which subscribes to process/handle snapshots and writes basic telemetry to `sample_logger.log`.
 - Implement new plugins by referencing `include/rvrse/plugin_api.h` and exporting `RvrsePluginInitialize` / `RvrsePluginShutdown`.
 - The host automatically loads plugins at startup and broadcasts snapshots after each refresh; future iterations will expose additional host services (menu registration, commands).
+
+## Release Packaging
+
+- Run `pwsh scripts/get_version.ps1` to see the version string derived from git tags (expects `v*` tags, falls back to commit metadata when untagged).
+- After building `Release`, invoke `pwsh scripts/package_release.ps1` to generate `dist/RvrseMonitor-<version>.zip` plus matching SHA256 manifest files.
+- GitHub Actions runs the same packaging step for the Release configuration and uploads the zip/checksum as workflow artifacts; pushing a tag automatically converts those artifacts into a published GitHub Release.

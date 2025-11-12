@@ -100,9 +100,50 @@ jobs:
           flags: release
           fail_ci_if_error: false
 
+      - name: Package release bundle
+        if: matrix.configuration == 'Release'
+        id: package
+        shell: pwsh
+        run: |
+          $result = ./scripts/package_release.ps1 -Configuration ${{ matrix.configuration }} -OutputDirectory dist
+          "package_path=$($result.ZipPath)" >> $Env:GITHUB_OUTPUT
+          "checksum_path=$($result.ZipChecksumPath)" >> $Env:GITHUB_OUTPUT
+          "package_version=$($result.Version)" >> $Env:GITHUB_OUTPUT
+
+      - name: Upload release package
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package-${{ github.sha }}
+          path: |
+            ${{ steps.package.outputs.package_path }}
+            ${{ steps.package.outputs.checksum_path }}
+
       - name: Upload Release binaries
         if: matrix.configuration == 'Release'
         uses: actions/upload-artifact@v4
         with:
           name: RvrseMonitor-Release-${{ github.sha }}
           path: build/Release/*.exe
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: windows-msbuild
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package-${{ github.sha }}
+          path: release
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          tag_name: ${{ github.ref_name }}
+          name: Rvrse Monitor ${{ github.ref_name }}
+          body: |
+            Automated release for ${{ github.ref_name }}.
+            Refer to CHANGELOG.md for highlights and docs/releases.md for packaging details.
