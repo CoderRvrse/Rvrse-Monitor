@@ -1,5 +1,6 @@
 # Rvrse Monitor
 [![Build and Test](https://github.com/CoderRvrse/Rvrse-Monitor/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/CoderRvrse/Rvrse-Monitor/actions)
+[![Code Coverage](https://codecov.io/gh/CoderRvrse/Rvrse-Monitor/branch/main/graph/badge.svg)](https://codecov.io/gh/CoderRvrse/Rvrse-Monitor)
 
 Native Windows system monitor inspired by System Informer, built entirely with C/C++ and Visual Studio tooling. The goal is to deliver a legally clean fork that keeps the upstream performance profile while adding new UX and safety features.
 
@@ -34,4 +35,4 @@ See `docs/build/local-project.md` for full details once populated.
 ### Code Coverage
 
 1. The workflow automatically generates `coverage.xml` via OpenCppCoverage for the Release build and publishes it as a downloadable artifact.
-2. To publish coverage trends to [Codecov](https://about.codecov.io/), create a project there and add a `CODECOV_TOKEN` repository secret; the workflow will detect the secret and upload `coverage.xml` with the `release` flag.
+2. Coverage uploads to [Codecov](https://codecov.io/gh/CoderRvrse/Rvrse-Monitor) using `codecov/codecov-action@v4`; for private forks, add a `CODECOV_TOKEN` repository secret so uploads succeed. Configure reporting thresholds via `.github/codecov.yml`.

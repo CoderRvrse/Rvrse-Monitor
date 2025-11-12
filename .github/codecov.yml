@@ -1,0 +1,18 @@
+coverage:
+  precision: 2
+  round: down
+  range: 60..100
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1.0
+    patch:
+      default:
+        target: auto
+        threshold: 1.0
+
+ignore:
+  - tests/
+  - docs/
+  - scripts/
