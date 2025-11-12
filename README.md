@@ -28,4 +28,10 @@ See `docs/build/local-project.md` for full details once populated.
 - `.github/workflows/build-and-test.yml` runs on GitHub Actions for every push and pull request against `main`, plus manual dispatches.
 - Each job checks out the repository on a `windows-latest` runner, restores dependencies via MSBuild, builds the solution for both `x64|Release` and `x64|Debug`, and runs the `RvrseMonitorTests.exe` smoke tests from `build\<Config>`.
 - Successful Release builds upload the generated `.exe` binaries as workflow artifacts (`RvrseMonitor-Release-<commit>`), which can be downloaded from the run summary for quick manual validation.
+- Release legs also install OpenCppCoverage, re-run the smoke tests under instrumentation, and attach a Cobertura report (`coverage-<commit>`) plus an optional Codecov upload (enabled by defining the `CODECOV_TOKEN` repository secret).
 - Use the workflow to validate changes on clean Microsoft-hosted infrastructure without needing a local Visual Studio install.
+
+### Code Coverage
+
+1. The workflow automatically generates `coverage.xml` via OpenCppCoverage for the Release build and publishes it as a downloadable artifact.
+2. To publish coverage trends to [Codecov](https://about.codecov.io/), create a project there and add a `CODECOV_TOKEN` repository secret; the workflow will detect the secret and upload `coverage.xml` with the `release` flag.

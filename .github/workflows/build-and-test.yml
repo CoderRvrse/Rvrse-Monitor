@@ -48,6 +48,43 @@ jobs:
         working-directory: build\${{ matrix.configuration }}
         run: .\RvrseMonitorTests.exe
 
+      - name: Install OpenCppCoverage
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: choco install opencppcoverage --yes --no-progress
+
+      - name: Generate coverage report
+        if: matrix.configuration == 'Release'
+        id: coverage
+        shell: pwsh
+        run: |
+          $coverageDir = Join-Path $Env:RUNNER_TEMP "coverage"
+          New-Item -ItemType Directory -Path $coverageDir -Force | Out-Null
+          $coverageFile = Join-Path $coverageDir "coverage.xml"
+          OpenCppCoverage.exe `
+            --sources src `
+            --sources include `
+            --export_type cobertura:$coverageFile `
+            --working_dir build\Release `
+            --target build\Release\RvrseMonitorTests.exe
+          "coverage_path=$coverageFile" >> $Env:GITHUB_OUTPUT
+
+      - name: Upload coverage artifact
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: ${{ steps.coverage.outputs.coverage_path }}
+
+      - name: Upload coverage to Codecov
+        if: matrix.configuration == 'Release' && secrets.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v4
+        with:
+          files: ${{ steps.coverage.outputs.coverage_path }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: release
+          fail_ci_if_error: false
+
       - name: Upload Release binaries
         if: matrix.configuration == 'Release'
         uses: actions/upload-artifact@v4
