@@ -8,6 +8,7 @@
 #include <limits>
 #include <string>
 #include <unordered_set>
+#include <utility>
 
 #include "process_snapshot.h"
 #include "handle_snapshot.h"
@@ -18,11 +19,34 @@
 namespace
 {
     int g_failures = 0;
+    LARGE_INTEGER g_qpcFrequency{};
 
     void ReportFailure(const wchar_t *message)
     {
         ++g_failures;
         std::fwprintf(stderr, L"[FAIL] %s\n", message);
+    }
+
+    template <typename Callable>
+    double MeasureAverageMilliseconds(Callable &&callable, int iterations)
+    {
+        if (g_qpcFrequency.QuadPart == 0)
+        {
+            QueryPerformanceFrequency(&g_qpcFrequency);
+        }
+
+        LARGE_INTEGER start{}, end{};
+        auto fn = std::forward<Callable>(callable);
+        QueryPerformanceCounter(&start);
+        for (int i = 0; i < iterations; ++i)
+        {
+            fn();
+        }
+        QueryPerformanceCounter(&end);
+
+        double elapsedSeconds = static_cast<double>(end.QuadPart - start.QuadPart) /
+                                static_cast<double>(g_qpcFrequency.QuadPart);
+        return (elapsedSeconds * 1000.0) / iterations;
     }
 
     void TestFormatSize()
@@ -287,6 +311,79 @@ namespace
             ReportFailure(L"Handle snapshot returned entries for an invalid PID.");
         }
     }
+
+    void BenchmarkProcessSnapshot()
+    {
+        const int iterations = 5;
+        double averageMs = MeasureAverageMilliseconds(
+            []()
+            {
+                auto snapshot = rvrse::core::ProcessSnapshot::Capture();
+                std::wstring lastName;
+                if (!snapshot.Processes().empty())
+                {
+                    lastName = snapshot.Processes().back().imageName;
+                }
+                (void)lastName;
+            },
+            iterations);
+
+        std::fwprintf(stdout, L"[PERF] ProcessSnapshot avg: %.2f ms\n", averageMs);
+        if (averageMs > 150.0)
+        {
+            ReportFailure(L"ProcessSnapshot performance regression detected.");
+        }
+    }
+
+    void BenchmarkHandleSnapshot()
+    {
+        const int iterations = 5;
+        double averageMs = MeasureAverageMilliseconds(
+            []()
+            {
+                auto handles = rvrse::core::HandleSnapshot::Capture();
+                volatile std::size_t count = handles.Handles().size();
+                (void)count;
+            },
+            iterations);
+
+        std::fwprintf(stdout, L"[PERF] HandleSnapshot avg: %.2f ms\n", averageMs);
+        if (averageMs > 200.0)
+        {
+            ReportFailure(L"HandleSnapshot performance regression detected.");
+        }
+    }
+
+    void BenchmarkUtf8Conversion()
+    {
+        const int iterations = 1000;
+        const std::wstring sample = L"Rvrse Monitor UTF Benchmark \u2603";
+
+        double toUtf8Ms = MeasureAverageMilliseconds(
+            [&]()
+            {
+                auto utf8 = rvrse::common::WideToUtf8(sample);
+                (void)utf8;
+            },
+            iterations);
+
+        double toWideMs = MeasureAverageMilliseconds(
+            [&]()
+            {
+                auto wide = rvrse::common::Utf8ToWide(rvrse::common::WideToUtf8(sample));
+                (void)wide;
+            },
+            iterations);
+
+        std::fwprintf(stdout, L"[PERF] WideToUtf8 avg: %.4f ms, Utf8ToWide avg: %.4f ms\n",
+                      toUtf8Ms,
+                      toWideMs);
+
+        if (toUtf8Ms > 5.0 || toWideMs > 5.0)
+        {
+            ReportFailure(L"UTF-8 conversion performance regression detected.");
+        }
+    }
 }
 
 int wmain()
@@ -301,6 +398,9 @@ int wmain()
     TestProcessSnapshotEdgeCases();
     TestHandleSnapshot();
     TestHandleSnapshotAccessDenied();
+    BenchmarkProcessSnapshot();
+    BenchmarkHandleSnapshot();
+    BenchmarkUtf8Conversion();
 
     if (g_failures == 0)
     {
