@@ -110,28 +110,50 @@ namespace
 
     void TestStringHelpers()
     {
-        auto trimmed = rvrse::common::TrimWhitespace(L"  Rvrse Monitor \r\n");
-        if (trimmed != L"Rvrse Monitor")
+        struct TrimCase
         {
-            ReportFailure(L"TrimWhitespace failed to remove surrounding whitespace.");
+            const wchar_t *input;
+            const wchar_t *expected;
+        } trimCases[] = {
+            {L"  Rvrse Monitor \r\n", L"Rvrse Monitor"},
+            {L"\t\n ", L""},
+            {L"", L""},
+            {L"\u2002UnicodeSpace\u2002", L"UnicodeSpace"},
+        };
+
+        for (const auto &test : trimCases)
+        {
+            auto trimmed = rvrse::common::TrimWhitespace(test.input);
+            if (trimmed != test.expected)
+            {
+                ReportFailure(L"TrimWhitespace failed for provided input.");
+            }
         }
 
-        auto emptyTrim = rvrse::common::TrimWhitespace(L"\t\n ");
-        if (!emptyTrim.empty())
+        auto lower = rvrse::common::ToLower(L"MIXEDß");
+        if (lower != L"mixedß")
         {
-            ReportFailure(L"TrimWhitespace should return empty for whitespace-only strings.");
+            ReportFailure(L"ToLower failed to convert extended characters.");
         }
 
-        auto lower = rvrse::common::ToLower(L"MixedCase 123");
-        if (lower != L"mixedcase 123")
+        struct PathCase
         {
-            ReportFailure(L"ToLower failed to convert string.");
-        }
+            const wchar_t *input;
+            const wchar_t *expected;
+        } pathCases[] = {
+            {L"c:/temp//sub\\file.txt ", L"C:\\temp\\sub\\file.txt"},
+            {L"\\\\server//share\\folder\\", L"\\\\server\\share\\folder"},
+            {L"C:\\", L"C:\\"},
+            {L"", L""},
+        };
 
-        auto normalized = rvrse::common::NormalizePath(L"c:/temp//sub\\file.txt ");
-        if (normalized != L"C:\\temp\\sub\\file.txt")
+        for (const auto &test : pathCases)
         {
-            ReportFailure(L"NormalizePath did not collapse separators or uppercase drive letter.");
+            auto normalized = rvrse::common::NormalizePath(test.input);
+            if (normalized != test.expected)
+            {
+                ReportFailure(L"NormalizePath failed for provided input.");
+            }
         }
 
         const char *utf8Input = u8"Rvrse \u2603";
@@ -164,11 +186,23 @@ namespace
             ReportFailure(L"FormatDuration failed for negative span.");
         }
 
+        auto longDuration = rvrse::common::FormatDuration(hours(99) + minutes(59) + seconds(59));
+        if (longDuration != L"99:59:59.000")
+        {
+            ReportFailure(L"FormatDuration failed for large span.");
+        }
+
         system_clock::time_point known = system_clock::time_point(seconds(1609459200));
         auto timestamp = rvrse::common::FormatTimestamp(known);
         if (timestamp != L"2021-01-01 00:00:00")
         {
             ReportFailure(L"FormatTimestamp did not produce expected UTC time.");
+        }
+
+        auto midnight = rvrse::common::FormatTimestamp(system_clock::time_point(seconds(0)));
+        if (midnight != L"1970-01-01 00:00:00")
+        {
+            ReportFailure(L"FormatTimestamp failed for unix epoch.");
         }
     }
 

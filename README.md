@@ -36,3 +36,9 @@ See `docs/build/local-project.md` for full details once populated.
 
 1. The workflow automatically generates `coverage.xml` via OpenCppCoverage for the Release build and publishes it as a downloadable artifact.
 2. Coverage uploads to [Codecov](https://codecov.io/gh/CoderRvrse/Rvrse-Monitor) using `codecov/codecov-action@v4`; for private forks, add a `CODECOV_TOKEN` repository secret so uploads succeed. Configure reporting thresholds via `.github/codecov.yml`.
+
+## Documentation & Contributing
+
+- `docs/build/local-project.md` – detailed local build instructions.
+- `docs/testing.md` – testing strategy, coverage expectations, benchmark guidance, and manual QA checklist.
+- `docs/contributing.md` – onboarding, workflow, coding standards, and PR checklist.
