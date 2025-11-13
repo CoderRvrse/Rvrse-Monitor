@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file. The format 
 - Version-aware release packaging script that bundles binaries, documentation, and SHA256 manifests.
 - CI automation that uploads release zips and publishes GitHub releases whenever a tag (`v*`) is pushed.
 - Real-time CPU and memory graphs inside the summary pane, fed by live system telemetry.
+- Module viewer window that surfaces every DLL loaded by the selected process complete with base address, size, and path metadata.
 
 ### Changed
 - Documented the release workflow so contributors can cut local builds that match the CI output.

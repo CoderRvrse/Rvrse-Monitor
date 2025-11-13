@@ -24,7 +24,16 @@
       "Bash(git commit:*)",
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(./RvrseMonitorApp.exe:*)",
+      "Bash(cmd.exe /c \"scripts\\build_release_local.cmd ALL\")",
+      "Bash(scriptsbuild_release_local.cmd ALL)",
+      "Bash(./scripts/build_release_local.cmd ALL)",
+      "Bash(timeout:*)",
+      "Bash(pwsh:*)",
+      "Bash(cat:*)",
+      "Bash(unzip:*)",
+      "Bash(cmd.exe:*)"
     ],
     "deny": [],
     "ask": []

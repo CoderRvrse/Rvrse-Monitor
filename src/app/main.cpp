@@ -32,6 +32,7 @@ namespace
     constexpr int kRefreshButtonId = 0x3002;
     constexpr int kFilterEditId = 0x3003;
     constexpr int kDetailsStaticId = 0x3004;
+    constexpr int kModulesButtonId = 0x3005;
 
     class ResourceGraphView
     {
@@ -301,6 +302,245 @@ namespace
         double latestMemory_ = 0.0;
     };
 
+    class ModuleViewerWindow
+    {
+    public:
+        static void Show(HWND owner, HINSTANCE instance, const rvrse::core::ProcessEntry &process)
+        {
+            auto window = std::unique_ptr<ModuleViewerWindow>(new ModuleViewerWindow(instance, process));
+            if (window->Create(owner))
+            {
+                window.release();
+            }
+            else
+            {
+                MessageBoxW(owner,
+                            L"Failed to create the module viewer window.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONERROR);
+            }
+        }
+
+        ~ModuleViewerWindow() = default;
+
+    private:
+        static constexpr const wchar_t *kClassName = L"RvrseModuleViewerWindow";
+
+        ModuleViewerWindow(HINSTANCE instance, const rvrse::core::ProcessEntry &process)
+            : instance_(instance), process_(process)
+        {
+            modules_ = rvrse::core::ProcessSnapshot::EnumerateModules(process.processId);
+        }
+
+        bool Create(HWND owner)
+        {
+            if (!EnsureClassRegistered())
+            {
+                return false;
+            }
+
+            hwnd_ = CreateWindowExW(
+                0,
+                kClassName,
+                L"",
+                WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_SIZEBOX,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                720,
+                480,
+                owner,
+                nullptr,
+                instance_,
+                this);
+
+            if (!hwnd_)
+            {
+                return false;
+            }
+
+            ShowWindow(hwnd_, SW_SHOWNORMAL);
+            UpdateWindow(hwnd_);
+            return true;
+        }
+
+        static bool EnsureClassRegistered()
+        {
+            static ATOM classAtom = 0;
+            if (classAtom != 0)
+            {
+                return true;
+            }
+
+            WNDCLASSW windowClass{};
+            windowClass.lpfnWndProc = &ModuleViewerWindow::WndProc;
+            windowClass.hInstance = GetModuleHandleW(nullptr);
+            windowClass.lpszClassName = kClassName;
+            windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+            windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+            classAtom = RegisterClassW(&windowClass);
+            return classAtom != 0;
+        }
+
+        static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+        {
+            ModuleViewerWindow *self = nullptr;
+
+            if (message == WM_NCCREATE)
+            {
+                auto *create = reinterpret_cast<CREATESTRUCTW *>(lParam);
+                self = static_cast<ModuleViewerWindow *>(create->lpCreateParams);
+                self->hwnd_ = hwnd;
+                self->instance_ = create->hInstance;
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+            }
+            else
+            {
+                self = reinterpret_cast<ModuleViewerWindow *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+            }
+
+            if (!self)
+            {
+                return DefWindowProcW(hwnd, message, wParam, lParam);
+            }
+
+            switch (message)
+            {
+            case WM_CREATE:
+                self->OnCreate();
+                return 0;
+            case WM_SIZE:
+                self->OnSize(LOWORD(lParam), HIWORD(lParam));
+                return 0;
+            case WM_DESTROY:
+                self->OnDestroy();
+                return 0;
+            case WM_NCDESTROY:
+                delete self;
+                return 0;
+            default:
+                break;
+            }
+
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        }
+
+        void OnCreate()
+        {
+            INITCOMMONCONTROLSEX icex = {sizeof(icex)};
+            icex.dwICC = ICC_LISTVIEW_CLASSES;
+            InitCommonControlsEx(&icex);
+
+            listView_ = CreateWindowExW(
+                WS_EX_CLIENTEDGE,
+                WC_LISTVIEWW,
+                nullptr,
+                WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL | LVS_NOSORTHEADER,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                nullptr,
+                instance_,
+                nullptr);
+
+            ListView_SetExtendedListViewStyle(listView_, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
+            EnsureColumns();
+            PopulateModules();
+            UpdateWindowTitle();
+        }
+
+        void EnsureColumns()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            struct ColumnInfo
+            {
+                const wchar_t *title;
+                int width;
+            } columns[] = {
+                {L"Module", 180},
+                {L"Base Address", 140},
+                {L"Size", 120},
+                {L"Path", 320}};
+
+            LVCOLUMNW column{};
+            column.mask = LVCF_TEXT | LVCF_WIDTH;
+
+            for (int i = 0; i < static_cast<int>(std::size(columns)); ++i)
+            {
+                column.pszText = const_cast<wchar_t *>(columns[i].title);
+                column.cx = columns[i].width;
+                ListView_InsertColumn(listView_, i, &column);
+            }
+        }
+
+        void PopulateModules()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            ListView_DeleteAllItems(listView_);
+
+            for (int index = 0; index < static_cast<int>(modules_.size()); ++index)
+            {
+                const auto &module = modules_[index];
+                std::wstring displayName = module.name.empty() ? L"[Unknown]" : module.name;
+
+                LVITEMW item{};
+                item.mask = LVIF_TEXT;
+                item.iItem = index;
+                item.pszText = displayName.data();
+                ListView_InsertItem(listView_, &item);
+
+                wchar_t baseBuffer[64];
+                StringCchPrintfW(baseBuffer, std::size(baseBuffer), L"0x%p", reinterpret_cast<void *>(module.baseAddress));
+                ListView_SetItemText(listView_, index, 1, baseBuffer);
+
+                std::wstring sizeText = rvrse::common::FormatSize(module.sizeBytes);
+                ListView_SetItemText(listView_, index, 2, sizeText.data());
+
+                std::wstring pathText = module.path.empty() ? L"(unknown)" : module.path;
+                ListView_SetItemText(listView_, index, 3, pathText.data());
+            }
+        }
+
+        void UpdateWindowTitle()
+        {
+            wchar_t title[256];
+            StringCchPrintfW(title,
+                             std::size(title),
+                             L"Modules - %s (PID %u)",
+                             process_.imageName.empty() ? L"[Unnamed]" : process_.imageName.c_str(),
+                             process_.processId);
+            SetWindowTextW(hwnd_, title);
+        }
+
+        void OnSize(int width, int height)
+        {
+            if (listView_)
+            {
+                MoveWindow(listView_, 0, 0, std::max(0, width), std::max(0, height), TRUE);
+            }
+        }
+
+        void OnDestroy()
+        {
+            // Nothing to do; deletion handled on WM_NCDESTROY.
+        }
+
+        HINSTANCE instance_;
+        HWND hwnd_ = nullptr;
+        HWND listView_ = nullptr;
+        rvrse::core::ProcessEntry process_;
+        std::vector<rvrse::core::ModuleEntry> modules_;
+    };
+
     class MainWindow
     {
     public:
@@ -432,6 +672,20 @@ namespace
                 instance_,
                 nullptr);
 
+            modulesButton_ = CreateWindowExW(
+                0,
+                L"BUTTON",
+                L"Modules...",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                reinterpret_cast<HMENU>(kModulesButtonId),
+                instance_,
+                nullptr);
+
             filterEdit_ = CreateWindowExW(
                 WS_EX_CLIENTEDGE,
                 L"EDIT",
@@ -479,6 +733,7 @@ namespace
 
             HFONT defaultFont = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
             SendMessageW(refreshButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            SendMessageW(modulesButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
             SendMessageW(filterEdit_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
             SendMessageW(listView_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
             SendMessageW(detailsStatic_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
@@ -526,6 +781,10 @@ namespace
             {
                 OnFilterChanged();
             }
+            else if (controlId == kModulesButtonId && code == BN_CLICKED)
+            {
+                ShowModulesForSelection();
+            }
         }
 
         bool OnNotify(LPARAM lParam)
@@ -556,6 +815,11 @@ namespace
                 {
                     UpdateDetailsPanel();
                 }
+                return true;
+            }
+            case NM_DBLCLK:
+            {
+                ShowModulesForSelection();
                 return true;
             }
             default:
@@ -702,20 +966,28 @@ namespace
         {
             const int topBarHeight = 42;
             const int buttonWidth = 90;
+            const int modulesButtonWidth = 110;
             const int buttonHeight = 26;
             const int padding = 10;
             const int detailsHeight = 34;
             const int graphHeight = graphView_.IsCreated() ? 140 : 0;
             const int graphSpacing = graphHeight > 0 ? 8 : 0;
+            const int buttonSpacing = 8;
 
             if (refreshButton_)
             {
                 MoveWindow(refreshButton_, padding, padding, buttonWidth, buttonHeight, TRUE);
             }
 
+            if (modulesButton_)
+            {
+                int moduleLeft = padding + buttonWidth + buttonSpacing;
+                MoveWindow(modulesButton_, moduleLeft, padding, modulesButtonWidth, buttonHeight, TRUE);
+            }
+
             if (filterEdit_)
             {
-                int editLeft = padding + buttonWidth + 8;
+                int editLeft = padding + buttonWidth + modulesButtonWidth + (buttonSpacing * 2);
                 int editWidth = std::max(120, width - editLeft - padding);
                 MoveWindow(filterEdit_, editLeft, padding, editWidth, buttonHeight, TRUE);
             }
@@ -906,6 +1178,26 @@ namespace
             }
         }
 
+        void ShowModulesForSelection()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            int selectedIndex = ListView_GetNextItem(listView_, -1, LVNI_SELECTED);
+            if (selectedIndex < 0 || selectedIndex >= static_cast<int>(visibleProcesses_.size()))
+            {
+                MessageBoxW(hwnd_,
+                            L"Select a process in the list before opening the module viewer.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONINFORMATION);
+                return;
+            }
+
+            ModuleViewerWindow::Show(hwnd_, instance_, visibleProcesses_[selectedIndex]);
+        }
+
         std::wstring FormatProcessDetails(const rvrse::core::ProcessEntry &process) const
         {
             std::wstring workingSet = rvrse::common::FormatSize(process.workingSetBytes);
@@ -952,6 +1244,7 @@ namespace
         HWND hwnd_ = nullptr;
         HWND listView_ = nullptr;
         HWND refreshButton_ = nullptr;
+        HWND modulesButton_ = nullptr;
         HWND filterEdit_ = nullptr;
         HWND detailsStatic_ = nullptr;
         bool columnsCreated_ = false;

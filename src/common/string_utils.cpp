@@ -47,6 +47,11 @@ namespace rvrse::common
 
     std::wstring NormalizePath(std::wstring_view input)
     {
+        auto isSeparator = [](wchar_t ch)
+        {
+            return ch == L'\\' || ch == L'/';
+        };
+
         std::wstring trimmed = TrimWhitespace(input);
         if (trimmed.empty())
         {
@@ -55,23 +60,31 @@ namespace rvrse::common
 
         std::wstring normalized;
         normalized.reserve(trimmed.size());
+
+        std::size_t index = 0;
+        bool isUnc = trimmed.size() >= 2 && isSeparator(trimmed[0]) && isSeparator(trimmed[1]);
         bool lastWasSeparator = false;
 
-        for (wchar_t ch : trimmed)
+        if (isUnc)
         {
+            normalized.push_back(L'\\');
+            normalized.push_back(L'\\');
+            index = 2;
+            lastWasSeparator = true;
+        }
+
+        for (; index < trimmed.size(); ++index)
+        {
+            wchar_t ch = trimmed[index];
             wchar_t mapped = (ch == L'/') ? L'\\' : ch;
 
             if (mapped == L'\\')
             {
-                if (normalized.empty())
+                if (!lastWasSeparator)
                 {
                     normalized.push_back(mapped);
+                    lastWasSeparator = true;
                 }
-                else if (!lastWasSeparator)
-                {
-                    normalized.push_back(mapped);
-                }
-                lastWasSeparator = true;
                 continue;
             }
 

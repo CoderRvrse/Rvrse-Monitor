@@ -6,6 +6,14 @@
 
 namespace rvrse::core
 {
+    struct ModuleEntry
+    {
+        std::wstring name;
+        std::wstring path;
+        std::uintptr_t baseAddress = 0;
+        std::uint32_t sizeBytes = 0;
+    };
+
     struct ThreadEntry
     {
         std::uint32_t threadId = 0;
@@ -35,6 +43,7 @@ namespace rvrse::core
         ProcessSnapshot() = default;
 
         static ProcessSnapshot Capture();
+        static std::vector<ModuleEntry> EnumerateModules(std::uint32_t processId);
 
         const std::vector<ProcessEntry> &Processes() const { return processes_; }
 

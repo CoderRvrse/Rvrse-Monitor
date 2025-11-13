@@ -378,6 +378,25 @@ namespace
         {
             ReportFailure(L"Current process was not present in snapshot.");
         }
+
+        auto modules = rvrse::core::ProcessSnapshot::EnumerateModules(currentPid);
+        if (modules.empty())
+        {
+            ReportFailure(L"Enumerating modules for current process returned zero entries.");
+        }
+        else
+        {
+            std::uintptr_t previousBase = modules.front().baseAddress;
+            for (size_t index = 1; index < modules.size(); ++index)
+            {
+                if (modules[index].baseAddress < previousBase)
+                {
+                    ReportFailure(L"Module entries were not sorted by base address.");
+                    break;
+                }
+                previousBase = modules[index].baseAddress;
+            }
+        }
     }
 
     void TestProcessSnapshotEdgeCases()

@@ -30,7 +30,7 @@ Core libraries should build as static libs/DLLs that feed the UI project. Keep i
 | Snapshot/diff utilities   | v2+         | Build once core enumeration is rock solid.                 |
 | Safety guardrails         | v1.x        | Read-only mode, protected process warnings.                |
 
-The summary pane now renders lightweight CPU and memory graphs via the `ResourceGraphView` control in `src/app/main.cpp`, giving immediate visual feedback without introducing a heavyweight charting dependency.
+The summary pane now renders lightweight CPU and memory graphs via the `ResourceGraphView` control in `src/app/main.cpp`, giving immediate visual feedback without introducing a heavyweight charting dependency. Process snapshots also include module inventories (captured via `EnumProcessModulesEx`) so the UI can pop up a module viewer window for any selected process without re-querying the system.
 
 ## Data flow
 

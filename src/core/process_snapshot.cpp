@@ -1,13 +1,16 @@
 #include "process_snapshot.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <vector>
 
 #include <Windows.h>
 #include <winternl.h>
+#include <psapi.h>
 
 #pragma comment(lib, "ntdll.lib")
+#pragma comment(lib, "Psapi.lib")
 
 namespace
 {
@@ -115,6 +118,99 @@ namespace
 
         return std::wstring(imageName.Buffer, imageName.Length / sizeof(wchar_t));
     }
+
+    std::wstring ExtractFileName(const std::wstring &path)
+    {
+        auto position = path.find_last_of(L"\\/");
+        if (position == std::wstring::npos)
+        {
+            return path;
+        }
+        return path.substr(position + 1);
+    }
+
+    std::vector<rvrse::core::ModuleEntry> EnumerateModulesInternal(std::uint32_t processId)
+    {
+        std::vector<rvrse::core::ModuleEntry> modules;
+
+        if (processId == 0)
+        {
+            return modules;
+        }
+
+        HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+        if (!process)
+        {
+            return modules;
+        }
+
+        std::vector<HMODULE> moduleHandles(128);
+        DWORD bytesNeeded = 0;
+
+        while (true)
+        {
+            if (!EnumProcessModulesEx(process,
+                                      moduleHandles.data(),
+                                      static_cast<DWORD>(moduleHandles.size() * sizeof(HMODULE)),
+                                      &bytesNeeded,
+                                      LIST_MODULES_ALL))
+            {
+                CloseHandle(process);
+                return modules;
+            }
+
+            if (bytesNeeded <= moduleHandles.size() * sizeof(HMODULE))
+            {
+                moduleHandles.resize(bytesNeeded / sizeof(HMODULE));
+                break;
+            }
+
+            moduleHandles.resize(bytesNeeded / sizeof(HMODULE));
+        }
+
+        for (HMODULE moduleHandle : moduleHandles)
+        {
+            if (!moduleHandle)
+            {
+                continue;
+            }
+
+            MODULEINFO moduleInfo{};
+            if (!GetModuleInformation(process, moduleHandle, &moduleInfo, sizeof(moduleInfo)))
+            {
+                continue;
+            }
+
+            wchar_t pathBuffer[MAX_PATH];
+            DWORD pathLength = GetModuleFileNameExW(process, moduleHandle, pathBuffer, static_cast<DWORD>(std::size(pathBuffer)));
+            std::wstring fullPath;
+            if (pathLength > 0)
+            {
+                fullPath.assign(pathBuffer, pathLength);
+            }
+
+            rvrse::core::ModuleEntry entry{};
+            entry.baseAddress = reinterpret_cast<std::uintptr_t>(moduleInfo.lpBaseOfDll);
+            entry.sizeBytes = static_cast<std::uint32_t>(moduleInfo.SizeOfImage);
+            entry.path = fullPath;
+            entry.name = ExtractFileName(fullPath);
+            if (entry.name.empty())
+            {
+                entry.name = L"[Unknown]";
+            }
+            modules.push_back(std::move(entry));
+        }
+
+        CloseHandle(process);
+
+        std::sort(modules.begin(), modules.end(),
+                  [](const rvrse::core::ModuleEntry &lhs, const rvrse::core::ModuleEntry &rhs)
+                  {
+                      return lhs.baseAddress < rhs.baseAddress;
+                  });
+
+        return modules;
+    }
 }
 
 namespace rvrse::core
@@ -175,5 +271,10 @@ namespace rvrse::core
                   });
 
         return snapshot;
+    }
+
+    std::vector<ModuleEntry> ProcessSnapshot::EnumerateModules(std::uint32_t processId)
+    {
+        return EnumerateModulesInternal(processId);
     }
 }
