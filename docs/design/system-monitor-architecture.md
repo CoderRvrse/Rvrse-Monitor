@@ -30,6 +30,8 @@ Core libraries should build as static libs/DLLs that feed the UI project. Keep i
 | Snapshot/diff utilities   | v2+         | Build once core enumeration is rock solid.                 |
 | Safety guardrails         | v1.x        | Read-only mode, protected process warnings.                |
 
+The summary pane now renders lightweight CPU and memory graphs via the `ResourceGraphView` control in `src/app/main.cpp`, giving immediate visual feedback without introducing a heavyweight charting dependency.
+
 ## Data flow
 
 1. `core` polls NT APIs (or subscribes to callbacks) and publishes immutable snapshots.

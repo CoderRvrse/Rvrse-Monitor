@@ -24,6 +24,13 @@ Native Windows system monitor inspired by System Informer, built entirely with C
 
 See `docs/build/local-project.md` for full details once populated.
 
+## Features
+
+- Live process grid with sorting, filtering, and handle/thread summaries.
+- Real-time CPU and memory graphs rendered with GDI, updating alongside the 4 s snapshot cadence so you can spot spikes instantly.
+- Plugin system with a working Sample Logger that consumes process and handle broadcasts.
+- JSON performance telemetry exports plus automated Release packaging for reproducible builds.
+
 ## Continuous Integration
 
 - `.github/workflows/build-and-test.yml` runs on GitHub Actions for every push and pull request against `main`, plus manual dispatches.

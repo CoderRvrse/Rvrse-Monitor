@@ -5,8 +5,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cwchar>
 #include <cwctype>
+#include <deque>
 #include <memory>
 #include <numeric>
 #include <sstream>
@@ -30,6 +32,274 @@ namespace
     constexpr int kRefreshButtonId = 0x3002;
     constexpr int kFilterEditId = 0x3003;
     constexpr int kDetailsStaticId = 0x3004;
+
+    class ResourceGraphView
+    {
+    public:
+        bool Create(HWND parent, HINSTANCE instance)
+        {
+            if (!EnsureClassRegistered(instance))
+            {
+                return false;
+            }
+
+            hwnd_ = CreateWindowExW(
+                0,
+                kClassName,
+                nullptr,
+                WS_CHILD | WS_VISIBLE,
+                0,
+                0,
+                0,
+                0,
+                parent,
+                nullptr,
+                instance,
+                this);
+            return hwnd_ != nullptr;
+        }
+
+        void Destroy()
+        {
+            if (hwnd_)
+            {
+                DestroyWindow(hwnd_);
+                hwnd_ = nullptr;
+            }
+        }
+
+        void Resize(int left, int top, int width, int height)
+        {
+            if (hwnd_)
+            {
+                MoveWindow(hwnd_, left, top, width, height, TRUE);
+            }
+        }
+
+        void AddSample(double cpuPercent, double memoryPercent)
+        {
+            AppendSample(cpuHistory_, cpuPercent);
+            AppendSample(memoryHistory_, memoryPercent);
+            latestCpu_ = cpuPercent;
+            latestMemory_ = memoryPercent;
+
+            if (hwnd_)
+            {
+                InvalidateRect(hwnd_, nullptr, FALSE);
+            }
+        }
+
+        bool IsCreated() const
+        {
+            return hwnd_ != nullptr;
+        }
+
+    private:
+        static constexpr const wchar_t *kClassName = L"RvrseResourceGraphView";
+        static constexpr size_t kMaxSamples = 180;
+        static constexpr int kPadding = 10;
+
+        static bool EnsureClassRegistered(HINSTANCE instance)
+        {
+            static ATOM classAtom = 0;
+            if (classAtom != 0)
+            {
+                return true;
+            }
+
+            WNDCLASSW windowClass{};
+            windowClass.style = CS_HREDRAW | CS_VREDRAW;
+            windowClass.lpfnWndProc = &ResourceGraphView::WndProc;
+            windowClass.hInstance = instance;
+            windowClass.lpszClassName = kClassName;
+            windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+            windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+            classAtom = RegisterClassW(&windowClass);
+            return classAtom != 0;
+        }
+
+        static void AppendSample(std::deque<double> &samples, double value)
+        {
+            value = std::clamp(value, 0.0, 100.0);
+            if (samples.size() >= kMaxSamples)
+            {
+                samples.pop_front();
+            }
+            samples.push_back(value);
+        }
+
+        static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+        {
+            ResourceGraphView *self = nullptr;
+
+            if (message == WM_NCCREATE)
+            {
+                auto *create = reinterpret_cast<CREATESTRUCTW *>(lParam);
+                self = static_cast<ResourceGraphView *>(create->lpCreateParams);
+                self->hwnd_ = hwnd;
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+                return TRUE;
+            }
+
+            self = reinterpret_cast<ResourceGraphView *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+            if (!self)
+            {
+                return DefWindowProcW(hwnd, message, wParam, lParam);
+            }
+
+            switch (message)
+            {
+            case WM_PAINT:
+                self->OnPaint();
+                return 0;
+            case WM_ERASEBKGND:
+                return 1;
+            default:
+                break;
+            }
+
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        }
+
+        void OnPaint()
+        {
+            if (!hwnd_)
+            {
+                return;
+            }
+
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd_, &ps);
+            if (!hdc)
+            {
+                return;
+            }
+
+            RECT client{};
+            GetClientRect(hwnd_, &client);
+            const int width = client.right - client.left;
+            const int height = client.bottom - client.top;
+
+            HDC memoryDc = CreateCompatibleDC(hdc);
+            HBITMAP buffer = CreateCompatibleBitmap(hdc, width, height);
+            HGDIOBJ oldBitmap = SelectObject(memoryDc, buffer);
+
+            HBRUSH background = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
+            FillRect(memoryDc, &client, background);
+            DeleteObject(background);
+
+            RECT plotRect = client;
+            InflateRect(&plotRect, -kPadding, -kPadding);
+            if (plotRect.right <= plotRect.left || plotRect.bottom <= plotRect.top)
+            {
+                plotRect = client;
+            }
+
+            DrawGrid(memoryDc, plotRect);
+            DrawSeries(memoryDc, plotRect, memoryHistory_, RGB(214, 137, 16));
+            DrawSeries(memoryDc, plotRect, cpuHistory_, RGB(40, 120, 255));
+            DrawLegend(memoryDc, plotRect);
+
+            HBRUSH border = CreateSolidBrush(RGB(200, 200, 200));
+            FrameRect(memoryDc, &client, border);
+            DeleteObject(border);
+
+            BitBlt(hdc, 0, 0, width, height, memoryDc, 0, 0, SRCCOPY);
+
+            SelectObject(memoryDc, oldBitmap);
+            DeleteObject(buffer);
+            DeleteDC(memoryDc);
+            EndPaint(hwnd_, &ps);
+        }
+
+        void DrawGrid(HDC hdc, const RECT &plotRect)
+        {
+            if (plotRect.bottom <= plotRect.top)
+            {
+                return;
+            }
+
+            HPEN gridPen = CreatePen(PS_DOT, 1, RGB(220, 220, 220));
+            HGDIOBJ oldPen = SelectObject(hdc, gridPen);
+
+            const int height = plotRect.bottom - plotRect.top;
+            for (int i = 1; i <= 3; ++i)
+            {
+                int y = plotRect.top + MulDiv(height, i, 4);
+                MoveToEx(hdc, plotRect.left, y, nullptr);
+                LineTo(hdc, plotRect.right, y);
+            }
+
+            SelectObject(hdc, oldPen);
+            DeleteObject(gridPen);
+        }
+
+        void DrawSeries(HDC hdc, const RECT &plotRect, const std::deque<double> &samples, COLORREF color)
+        {
+            if (samples.empty())
+            {
+                return;
+            }
+
+            const int width = plotRect.right - plotRect.left;
+            const int height = plotRect.bottom - plotRect.top;
+            if (width <= 0 || height <= 0)
+            {
+                return;
+            }
+
+            std::vector<POINT> points(samples.size());
+            double step = samples.size() > 1 ? static_cast<double>(width) / (samples.size() - 1) : 0.0;
+
+            size_t index = 0;
+            for (double value : samples)
+            {
+                double clamped = std::clamp(value, 0.0, 100.0) / 100.0;
+                LONG x = plotRect.left + static_cast<LONG>(std::round(step * index));
+                LONG y = plotRect.bottom - static_cast<LONG>(std::round(clamped * height));
+                points[index] = {x, y};
+                ++index;
+            }
+
+            HPEN seriesPen = CreatePen(PS_SOLID, 2, color);
+            HGDIOBJ oldPen = SelectObject(hdc, seriesPen);
+            Polyline(hdc, points.data(), static_cast<int>(points.size()));
+            SelectObject(hdc, oldPen);
+            DeleteObject(seriesPen);
+        }
+
+        void DrawLegend(HDC hdc, const RECT &plotRect)
+        {
+            SetBkMode(hdc, TRANSPARENT);
+
+            const int legendTop = plotRect.top + 6;
+            int legendLeft = plotRect.left + 6;
+
+            DrawLegendEntry(hdc, legendLeft, legendTop, RGB(40, 120, 255), L"CPU", latestCpu_);
+            legendLeft += 110;
+            DrawLegendEntry(hdc, legendLeft, legendTop, RGB(214, 137, 16), L"Memory", latestMemory_);
+        }
+
+        void DrawLegendEntry(HDC hdc, int left, int top, COLORREF color, const wchar_t *label, double value)
+        {
+            RECT swatch{left, top, left + 10, top + 10};
+            HBRUSH brush = CreateSolidBrush(color);
+            FillRect(hdc, &swatch, brush);
+            DeleteObject(brush);
+            FrameRect(hdc, &swatch, reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
+
+            wchar_t text[64];
+            StringCchPrintfW(text, std::size(text), L"%s: %.1f%%", label, value);
+            SetTextColor(hdc, RGB(32, 32, 32));
+            TextOutW(hdc, left + 14, top - 1, text, lstrlenW(text));
+        }
+
+        HWND hwnd_ = nullptr;
+        std::deque<double> cpuHistory_;
+        std::deque<double> memoryHistory_;
+        double latestCpu_ = 0.0;
+        double latestMemory_ = 0.0;
+    };
 
     class MainWindow
     {
@@ -205,6 +475,8 @@ namespace
                 instance_,
                 nullptr);
 
+            graphView_.Create(hwnd_, instance_);
+
             HFONT defaultFont = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
             SendMessageW(refreshButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
             SendMessageW(filterEdit_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
@@ -227,6 +499,8 @@ namespace
             {
                 KillTimer(hwnd_, kRefreshTimerId);
             }
+
+            graphView_.Destroy();
 
             if (pluginLoader_)
             {
@@ -326,6 +600,7 @@ namespace
         {
             snapshot_ = rvrse::core::ProcessSnapshot::Capture();
             handleSnapshot_ = rvrse::core::HandleSnapshot::Capture();
+            UpdateResourceGraphs();
 
             if (pluginLoader_)
             {
@@ -373,13 +648,65 @@ namespace
             }
         }
 
+        void UpdateResourceGraphs()
+        {
+            double memoryPercent = 0.0;
+            MEMORYSTATUSEX memoryStatus{};
+            memoryStatus.dwLength = sizeof(memoryStatus);
+            if (GlobalMemoryStatusEx(&memoryStatus) && memoryStatus.ullTotalPhys > 0)
+            {
+                unsigned __int64 used = memoryStatus.ullTotalPhys - memoryStatus.ullAvailPhys;
+                memoryPercent = (static_cast<double>(used) / static_cast<double>(memoryStatus.ullTotalPhys)) * 100.0;
+            }
+
+            double cpuPercent = cpuUsagePercent_;
+            FILETIME idle{}, kernel{}, user{};
+            if (GetSystemTimes(&idle, &kernel, &user))
+            {
+                ULARGE_INTEGER idle64{};
+                idle64.LowPart = idle.dwLowDateTime;
+                idle64.HighPart = idle.dwHighDateTime;
+
+                ULARGE_INTEGER kernel64{};
+                kernel64.LowPart = kernel.dwLowDateTime;
+                kernel64.HighPart = kernel.dwHighDateTime;
+
+                ULARGE_INTEGER user64{};
+                user64.LowPart = user.dwLowDateTime;
+                user64.HighPart = user.dwHighDateTime;
+
+                if (hasCpuBaseline_)
+                {
+                    ULONGLONG idleDelta = idle64.QuadPart - previousIdleTime_.QuadPart;
+                    ULONGLONG kernelDelta = kernel64.QuadPart - previousKernelTime_.QuadPart;
+                    ULONGLONG userDelta = user64.QuadPart - previousUserTime_.QuadPart;
+                    ULONGLONG total = kernelDelta + userDelta;
+                    if (total > 0 && idleDelta <= total)
+                    {
+                        cpuPercent = (static_cast<double>(total - idleDelta) / static_cast<double>(total)) * 100.0;
+                    }
+                }
+
+                previousIdleTime_ = idle64;
+                previousKernelTime_ = kernel64;
+                previousUserTime_ = user64;
+                hasCpuBaseline_ = true;
+            }
+
+            cpuUsagePercent_ = std::clamp(cpuPercent, 0.0, 100.0);
+            memoryUsagePercent_ = std::clamp(memoryPercent, 0.0, 100.0);
+            graphView_.AddSample(cpuUsagePercent_, memoryUsagePercent_);
+        }
+
         void LayoutControls(int width, int height)
         {
             const int topBarHeight = 42;
             const int buttonWidth = 90;
             const int buttonHeight = 26;
             const int padding = 10;
-            const int detailsHeight = 28;
+            const int detailsHeight = 34;
+            const int graphHeight = graphView_.IsCreated() ? 140 : 0;
+            const int graphSpacing = graphHeight > 0 ? 8 : 0;
 
             if (refreshButton_)
             {
@@ -393,16 +720,26 @@ namespace
                 MoveWindow(filterEdit_, editLeft, padding, editWidth, buttonHeight, TRUE);
             }
 
-            if (listView_)
-            {
-                int listTop = topBarHeight;
-                int listHeight = std::max(0, height - topBarHeight - detailsHeight);
-                MoveWindow(listView_, 0, listTop, width, listHeight, TRUE);
-            }
-
+            int detailsTop = height - detailsHeight;
             if (detailsStatic_)
             {
-                MoveWindow(detailsStatic_, padding, height - detailsHeight, width - (padding * 2), detailsHeight, TRUE);
+                MoveWindow(detailsStatic_, padding, detailsTop, width - (padding * 2), detailsHeight, TRUE);
+            }
+
+            int graphBottom = detailsTop - graphSpacing;
+            if (graphView_.IsCreated())
+            {
+                int graphTop = std::max(topBarHeight, graphBottom - graphHeight);
+                int graphWidth = std::max(0, width - (padding * 2));
+                int graphActualHeight = std::max(0, graphBottom - graphTop);
+                graphView_.Resize(padding, graphTop, graphWidth, graphActualHeight);
+                graphBottom = graphTop - graphSpacing;
+            }
+
+            if (listView_)
+            {
+                int listHeight = std::max(0, graphBottom - topBarHeight);
+                MoveWindow(listView_, 0, topBarHeight, width, listHeight, TRUE);
             }
         }
 
@@ -602,10 +939,12 @@ namespace
             std::wstring workingSet = rvrse::common::FormatSize(totalWorkingSet);
             wchar_t buffer[256];
             StringCchPrintfW(buffer, std::size(buffer),
-                             L"Processes: %zu | Threads: %llu | Working Set Total: %s",
+                             L"Processes: %zu | Threads: %llu | Working Set Total: %s | CPU: %.1f%% | Memory: %.1f%%",
                              totalProcesses,
                              static_cast<unsigned long long>(totalThreads),
-                             workingSet.c_str());
+                             workingSet.c_str(),
+                             cpuUsagePercent_,
+                             memoryUsagePercent_);
             return buffer;
         }
 
@@ -623,6 +962,13 @@ namespace
         int sortColumn_ = 0;
         bool sortAscending_ = true;
         std::unique_ptr<rvrse::core::PluginLoader> pluginLoader_;
+        ResourceGraphView graphView_;
+        double cpuUsagePercent_ = 0.0;
+        double memoryUsagePercent_ = 0.0;
+        ULARGE_INTEGER previousIdleTime_{};
+        ULARGE_INTEGER previousKernelTime_{};
+        ULARGE_INTEGER previousUserTime_{};
+        bool hasCpuBaseline_ = false;
     };
 }
 
