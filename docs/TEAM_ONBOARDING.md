@@ -155,12 +155,35 @@ Rvrse Monitor/
 - [x] Automated release packaging
 - [x] UNC path normalization
 
-### 🚧 In Progress
-- [ ] **Network Connections View** (HIGH PRIORITY)
-  - TCP/UDP connection enumeration
-  - Per-process filtering
-  - UI integration
-  - Unit tests
+### 🚧 In Progress - Network Connections View (HIGH PRIORITY)
+
+**When working on this feature, tell Claude Code: "Use the todo list to track this"**
+
+#### Task Breakdown:
+- [ ] Design network connection data structures and API
+- [ ] Implement TCP/UDP connection enumeration using GetExtendedTcpTable/GetExtendedUdpTable
+- [ ] Add NetworkSnapshot class for capturing connection state
+- [ ] Create network connections UI viewer (similar to modules viewer)
+- [ ] Add network connection filtering and sorting
+- [ ] Update telemetry system to include network snapshot timing
+- [ ] Add unit tests for network enumeration
+
+**Example request to Claude Code:**
+```
+"I need to implement the Network Connections View feature.
+
+Requirements:
+- Design NetworkConnectionEntry and NetworkSnapshot classes
+- Implement TCP enumeration using GetExtendedTcpTable (IPv4 + IPv6)
+- Implement UDP enumeration using GetExtendedUdpTable (IPv4 + IPv6)
+- Add 'Network...' button to main UI
+- Display connections in sortable list (Protocol, Local/Remote Address, State, PID)
+- Add per-process filtering
+- Write unit tests for enumeration and filtering
+- Update telemetry to track NetworkSnapshot performance (<10ms target)
+
+Use the todo list to track all these tasks."
+```
 
 ### 📋 Planned (Tier 3+)
 - [ ] Kernel driver enhancements
