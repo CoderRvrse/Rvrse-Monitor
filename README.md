@@ -49,6 +49,13 @@ See `docs/build/local-project.md` for full details once populated.
 
 ## Documentation & Contributing
 
+**For Remote Developers (Claude Code):**
+- `docs/CLAUDE_CODE_GUIDE.md` ⭐ **Start here!** Learn how to use the todo list system and work effectively with Claude Code
+- `docs/TEAM_ONBOARDING.md` – Complete onboarding guide for remote development
+- `docs/TESTING_CHECKLIST.md` – Mandatory testing procedures before every push
+- `scripts/validate_before_push.ps1` – Automated pre-push validation (run this before every push!)
+
+**General Documentation:**
 - `docs/build/local-project.md` – detailed local build instructions.
 - `docs/testing.md` – testing strategy, coverage expectations, benchmark guidance, and manual QA checklist.
 - `docs/contributing.md` – onboarding, workflow, coding standards, and PR checklist.
