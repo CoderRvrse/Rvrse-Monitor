@@ -1,7 +1,10 @@
 #define NOMINMAX
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <commctrl.h>
 #include <strsafe.h>
+#include <iphlpapi.h>
 
 #include <algorithm>
 #include <array>
@@ -18,10 +21,13 @@
 #include "rvrse_monitor.h"
 #include "rvrse/common/formatting.h"
 #include "process_snapshot.h"
+#include "network_snapshot.h"
 #include "handle_snapshot.h"
 #include "plugin_loader.h"
 
 #pragma comment(lib, "Comctl32.lib")
+#pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "Iphlpapi.lib")
 
 namespace
 {
@@ -33,6 +39,7 @@ namespace
     constexpr int kFilterEditId = 0x3003;
     constexpr int kDetailsStaticId = 0x3004;
     constexpr int kModulesButtonId = 0x3005;
+    constexpr int kConnectionsButtonId = 0x3006;
 
     class ResourceGraphView
     {
@@ -302,7 +309,7 @@ namespace
         double latestMemory_ = 0.0;
     };
 
-    class ModuleViewerWindow
+class ModuleViewerWindow
     {
     public:
         static void Show(HWND owner, HINSTANCE instance, const rvrse::core::ProcessEntry &process)
@@ -541,6 +548,323 @@ namespace
         std::vector<rvrse::core::ModuleEntry> modules_;
     };
 
+    class ConnectionViewerWindow
+    {
+    public:
+        static void Show(HWND owner,
+                         HINSTANCE instance,
+                         const rvrse::core::ProcessEntry &process,
+                         const rvrse::core::NetworkSnapshot &snapshot)
+        {
+            auto connections = snapshot.ConnectionsForProcess(process.processId);
+            auto window = std::unique_ptr<ConnectionViewerWindow>(
+                new ConnectionViewerWindow(instance, process, std::move(connections)));
+            if (window->Create(owner))
+            {
+                window.release();
+            }
+            else
+            {
+                MessageBoxW(owner,
+                            L"Failed to create the connection viewer window.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONERROR);
+            }
+        }
+
+    private:
+        static constexpr const wchar_t *kClassName = L"RvrseConnectionViewerWindow";
+
+        ConnectionViewerWindow(HINSTANCE instance,
+                               const rvrse::core::ProcessEntry &process,
+                               std::vector<rvrse::core::ConnectionEntry> connections)
+            : instance_(instance), process_(process), connections_(std::move(connections))
+        {
+        }
+
+        bool Create(HWND owner)
+        {
+            if (!EnsureClassRegistered())
+            {
+                return false;
+            }
+
+            hwnd_ = CreateWindowExW(
+                0,
+                kClassName,
+                L"",
+                WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_SIZEBOX,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                860,
+                520,
+                owner,
+                nullptr,
+                instance_,
+                this);
+
+            if (!hwnd_)
+            {
+                return false;
+            }
+
+            ShowWindow(hwnd_, SW_SHOWNORMAL);
+            UpdateWindow(hwnd_);
+            return true;
+        }
+
+        static bool EnsureClassRegistered()
+        {
+            static ATOM classAtom = 0;
+            if (classAtom != 0)
+            {
+                return true;
+            }
+
+            WNDCLASSW windowClass{};
+            windowClass.lpfnWndProc = &ConnectionViewerWindow::WndProc;
+            windowClass.hInstance = GetModuleHandleW(nullptr);
+            windowClass.lpszClassName = kClassName;
+            windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+            windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+            classAtom = RegisterClassW(&windowClass);
+            return classAtom != 0;
+        }
+
+        static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+        {
+            ConnectionViewerWindow *self = nullptr;
+
+            if (message == WM_NCCREATE)
+            {
+                auto *create = reinterpret_cast<CREATESTRUCTW *>(lParam);
+                self = static_cast<ConnectionViewerWindow *>(create->lpCreateParams);
+                self->hwnd_ = hwnd;
+                self->instance_ = create->hInstance;
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+            }
+            else
+            {
+                self = reinterpret_cast<ConnectionViewerWindow *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+            }
+
+            if (!self)
+            {
+                return DefWindowProcW(hwnd, message, wParam, lParam);
+            }
+
+            switch (message)
+            {
+            case WM_CREATE:
+                self->OnCreate();
+                return 0;
+            case WM_SIZE:
+                self->OnSize(LOWORD(lParam), HIWORD(lParam));
+                return 0;
+            case WM_DESTROY:
+                self->OnDestroy();
+                return 0;
+            case WM_NCDESTROY:
+                delete self;
+                return 0;
+            default:
+                break;
+            }
+
+            return DefWindowProcW(hwnd, message, wParam, lParam);
+        }
+
+        void OnCreate()
+        {
+            INITCOMMONCONTROLSEX icex = {sizeof(icex)};
+            icex.dwICC = ICC_LISTVIEW_CLASSES;
+            InitCommonControlsEx(&icex);
+
+            listView_ = CreateWindowExW(
+                WS_EX_CLIENTEDGE,
+                WC_LISTVIEWW,
+                nullptr,
+                WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS | LVS_SINGLESEL | LVS_NOSORTHEADER,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                nullptr,
+                instance_,
+                nullptr);
+
+            ListView_SetExtendedListViewStyle(listView_, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
+            EnsureColumns();
+            PopulateConnections();
+            UpdateWindowTitle();
+        }
+
+        void EnsureColumns()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            struct ColumnInfo
+            {
+                const wchar_t *title;
+                int width;
+            } columns[] = {
+                {L"Protocol", 90},
+                {L"Local Address", 200},
+                {L"Remote Address", 200},
+                {L"State", 120}};
+
+            LVCOLUMNW column{};
+            column.mask = LVCF_TEXT | LVCF_WIDTH;
+
+            for (int i = 0; i < static_cast<int>(std::size(columns)); ++i)
+            {
+                column.pszText = const_cast<wchar_t *>(columns[i].title);
+                column.cx = columns[i].width;
+                ListView_InsertColumn(listView_, i, &column);
+            }
+        }
+
+        void PopulateConnections()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            ListView_DeleteAllItems(listView_);
+
+            if (connections_.empty())
+            {
+                LVITEMW item{};
+                item.mask = LVIF_TEXT;
+                item.iItem = 0;
+                item.pszText = const_cast<wchar_t *>(L"(no active connections)");
+                ListView_InsertItem(listView_, &item);
+                for (int column = 1; column < 4; ++column)
+                {
+                    ListView_SetItemText(listView_, 0, column, const_cast<wchar_t *>(L"-"));
+                }
+                return;
+            }
+
+            for (int index = 0; index < static_cast<int>(connections_.size()); ++index)
+            {
+                const auto &connection = connections_[index];
+                std::wstring protocolText = connection.protocol == rvrse::core::TransportProtocol::Tcp ? L"TCP" : L"UDP";
+
+                LVITEMW item{};
+                item.mask = LVIF_TEXT;
+                item.iItem = index;
+                item.pszText = protocolText.data();
+                ListView_InsertItem(listView_, &item);
+
+                auto localEndpoint = FormatEndpoint(connection.localAddress, connection.localPort);
+                ListView_SetItemText(listView_, index, 1, localEndpoint.data());
+
+                auto remoteEndpoint = connection.protocol == rvrse::core::TransportProtocol::Tcp
+                                           ? FormatEndpoint(connection.remoteAddress, connection.remotePort)
+                                           : std::wstring(L"-");
+                ListView_SetItemText(listView_, index, 2, remoteEndpoint.data());
+
+                std::wstring stateText = connection.protocol == rvrse::core::TransportProtocol::Tcp
+                                             ? DescribeTcpState(connection.state)
+                                             : L"-";
+                ListView_SetItemText(listView_, index, 3, stateText.data());
+            }
+        }
+
+        void UpdateWindowTitle()
+        {
+            wchar_t title[256];
+            StringCchPrintfW(title,
+                             std::size(title),
+                             L"Connections - %s (PID %u)",
+                             process_.imageName.empty() ? L"[Unnamed]" : process_.imageName.c_str(),
+                             process_.processId);
+            SetWindowTextW(hwnd_, title);
+        }
+
+        void OnSize(int width, int height)
+        {
+            if (listView_)
+            {
+                MoveWindow(listView_, 0, 0, std::max(0, width), std::max(0, height), TRUE);
+            }
+        }
+
+        void OnDestroy()
+        {
+        }
+
+        static std::wstring FormatEndpoint(std::uint32_t address, std::uint16_t port)
+        {
+            if (address == 0)
+            {
+                return std::wstring(L"-");
+            }
+
+            IN_ADDR addr{};
+            addr.S_un.S_addr = address;
+            wchar_t buffer[INET_ADDRSTRLEN] = L"";
+            if (!InetNtopW(AF_INET, &addr, buffer, static_cast<DWORD>(std::size(buffer))))
+            {
+                StringCchCopyW(buffer, std::size(buffer), L"0.0.0.0");
+            }
+
+            if (port == 0)
+            {
+                return std::wstring(buffer);
+            }
+
+            wchar_t endpoint[64];
+            StringCchPrintfW(endpoint, std::size(endpoint), L"%s:%u", buffer, port);
+            return endpoint;
+        }
+
+        static const wchar_t *DescribeTcpState(std::uint8_t state)
+        {
+            switch (state)
+            {
+            case MIB_TCP_STATE_CLOSED:
+                return L"CLOSED";
+            case MIB_TCP_STATE_LISTEN:
+                return L"LISTEN";
+            case MIB_TCP_STATE_SYN_SENT:
+                return L"SYN-SENT";
+            case MIB_TCP_STATE_SYN_RCVD:
+                return L"SYN-RECEIVED";
+            case MIB_TCP_STATE_ESTAB:
+                return L"ESTABLISHED";
+            case MIB_TCP_STATE_FIN_WAIT1:
+                return L"FIN-WAIT-1";
+            case MIB_TCP_STATE_FIN_WAIT2:
+                return L"FIN-WAIT-2";
+            case MIB_TCP_STATE_CLOSE_WAIT:
+                return L"CLOSE-WAIT";
+            case MIB_TCP_STATE_CLOSING:
+                return L"CLOSING";
+            case MIB_TCP_STATE_LAST_ACK:
+                return L"LAST-ACK";
+            case MIB_TCP_STATE_TIME_WAIT:
+                return L"TIME-WAIT";
+            case MIB_TCP_STATE_DELETE_TCB:
+                return L"DELETE-TCB";
+            default:
+                return L"UNKNOWN";
+            }
+        }
+
+        HINSTANCE instance_ = nullptr;
+        HWND hwnd_ = nullptr;
+        HWND listView_ = nullptr;
+        rvrse::core::ProcessEntry process_;
+        std::vector<rvrse::core::ConnectionEntry> connections_;
+    };
+
     class MainWindow
     {
     public:
@@ -686,6 +1010,20 @@ namespace
                 instance_,
                 nullptr);
 
+            connectionsButton_ = CreateWindowExW(
+                0,
+                L"BUTTON",
+                L"Connections...",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                reinterpret_cast<HMENU>(kConnectionsButtonId),
+                instance_,
+                nullptr);
+
             filterEdit_ = CreateWindowExW(
                 WS_EX_CLIENTEDGE,
                 L"EDIT",
@@ -732,11 +1070,30 @@ namespace
             graphView_.Create(hwnd_, instance_);
 
             HFONT defaultFont = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
-            SendMessageW(refreshButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
-            SendMessageW(modulesButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
-            SendMessageW(filterEdit_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
-            SendMessageW(listView_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
-            SendMessageW(detailsStatic_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            if (refreshButton_)
+            {
+                SendMessageW(refreshButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
+            if (modulesButton_)
+            {
+                SendMessageW(modulesButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
+            if (connectionsButton_)
+            {
+                SendMessageW(connectionsButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
+            if (filterEdit_)
+            {
+                SendMessageW(filterEdit_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
+            if (listView_)
+            {
+                SendMessageW(listView_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
+            if (detailsStatic_)
+            {
+                SendMessageW(detailsStatic_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
 
             EnsureColumns();
             RefreshProcesses();
@@ -784,6 +1141,10 @@ namespace
             else if (controlId == kModulesButtonId && code == BN_CLICKED)
             {
                 ShowModulesForSelection();
+            }
+            else if (controlId == kConnectionsButtonId && code == BN_CLICKED)
+            {
+                ShowConnectionsForSelection();
             }
         }
 
@@ -864,7 +1225,13 @@ namespace
         {
             snapshot_ = rvrse::core::ProcessSnapshot::Capture();
             handleSnapshot_ = rvrse::core::HandleSnapshot::Capture();
+            networkSnapshot_ = rvrse::core::NetworkSnapshot::Capture();
             UpdateResourceGraphs();
+
+            if (connectionsButton_)
+            {
+                EnableWindow(connectionsButton_, !(networkSnapshot_.AccessDenied() || networkSnapshot_.CaptureFailed()));
+            }
 
             if (pluginLoader_)
             {
@@ -967,6 +1334,7 @@ namespace
             const int topBarHeight = 42;
             const int buttonWidth = 90;
             const int modulesButtonWidth = 110;
+            const int connectionsButtonWidth = 130;
             const int buttonHeight = 26;
             const int padding = 10;
             const int detailsHeight = 34;
@@ -985,9 +1353,15 @@ namespace
                 MoveWindow(modulesButton_, moduleLeft, padding, modulesButtonWidth, buttonHeight, TRUE);
             }
 
+            if (connectionsButton_)
+            {
+                int connectionsLeft = padding + buttonWidth + modulesButtonWidth + (buttonSpacing * 2);
+                MoveWindow(connectionsButton_, connectionsLeft, padding, connectionsButtonWidth, buttonHeight, TRUE);
+            }
+
             if (filterEdit_)
             {
-                int editLeft = padding + buttonWidth + modulesButtonWidth + (buttonSpacing * 2);
+                int editLeft = padding + buttonWidth + modulesButtonWidth + connectionsButtonWidth + (buttonSpacing * 3);
                 int editWidth = std::max(120, width - editLeft - padding);
                 MoveWindow(filterEdit_, editLeft, padding, editWidth, buttonHeight, TRUE);
             }
@@ -1198,19 +1572,63 @@ namespace
             ModuleViewerWindow::Show(hwnd_, instance_, visibleProcesses_[selectedIndex]);
         }
 
+        void ShowConnectionsForSelection()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            int selectedIndex = ListView_GetNextItem(listView_, -1, LVNI_SELECTED);
+            if (selectedIndex < 0 || selectedIndex >= static_cast<int>(visibleProcesses_.size()))
+            {
+                MessageBoxW(hwnd_,
+                            L"Select a process in the list before opening the connection viewer.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONINFORMATION);
+                return;
+            }
+
+            if (networkSnapshot_.AccessDenied())
+            {
+                MessageBoxW(hwnd_,
+                            L"Viewing per-process network connections requires Administrator privileges. "
+                            L"Restart Rvrse Monitor with elevated rights to enable this feature.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONINFORMATION);
+                return;
+            }
+
+            if (networkSnapshot_.CaptureFailed())
+            {
+                MessageBoxW(hwnd_,
+                            L"Network connection data is currently unavailable. Try refreshing or restart with elevated rights.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONWARNING);
+                return;
+            }
+
+            ConnectionViewerWindow::Show(hwnd_, instance_, visibleProcesses_[selectedIndex], networkSnapshot_);
+        }
+
         std::wstring FormatProcessDetails(const rvrse::core::ProcessEntry &process) const
         {
+            bool connectionUnavailable = networkSnapshot_.AccessDenied() || networkSnapshot_.CaptureFailed();
             std::wstring workingSet = rvrse::common::FormatSize(process.workingSetBytes);
             std::wstring privateBytes = rvrse::common::FormatSize(process.privateBytes);
             auto handleCount = handleSnapshot_.HandleCountForProcess(process.processId);
+            std::wstring connectionText = connectionUnavailable
+                                              ? std::wstring(L"N/A")
+                                              : std::to_wstring(networkSnapshot_.ConnectionCountForProcess(process.processId));
 
             wchar_t buffer[512];
             StringCchPrintfW(buffer, std::size(buffer),
-                             L"%s (PID %u) | Threads: %u | Handles: %zu | WS: %s | Private: %s",
+                             L"%s (PID %u) | Threads: %u | Handles: %zu | Connections: %s | WS: %s | Private: %s",
                              process.imageName.empty() ? L"[Unnamed]" : process.imageName.c_str(),
                              process.processId,
                              process.threadCount,
                              handleCount,
+                             connectionText.c_str(),
                              workingSet.c_str(),
                              privateBytes.c_str());
             return buffer;
@@ -1229,12 +1647,27 @@ namespace
             }
 
             std::wstring workingSet = rvrse::common::FormatSize(totalWorkingSet);
+            std::wstring connectionSummary;
+            if (networkSnapshot_.AccessDenied())
+            {
+                connectionSummary = L"N/A (requires elevation)";
+            }
+            else if (networkSnapshot_.CaptureFailed())
+            {
+                connectionSummary = L"N/A (unavailable)";
+            }
+            else
+            {
+                connectionSummary = std::to_wstring(networkSnapshot_.Connections().size());
+            }
+
             wchar_t buffer[256];
             StringCchPrintfW(buffer, std::size(buffer),
-                             L"Processes: %zu | Threads: %llu | Working Set Total: %s | CPU: %.1f%% | Memory: %.1f%%",
+                             L"Processes: %zu | Threads: %llu | Working Set Total: %s | Connections: %s | CPU: %.1f%% | Memory: %.1f%%",
                              totalProcesses,
                              static_cast<unsigned long long>(totalThreads),
                              workingSet.c_str(),
+                             connectionSummary.c_str(),
                              cpuUsagePercent_,
                              memoryUsagePercent_);
             return buffer;
@@ -1245,11 +1678,13 @@ namespace
         HWND listView_ = nullptr;
         HWND refreshButton_ = nullptr;
         HWND modulesButton_ = nullptr;
+        HWND connectionsButton_ = nullptr;
         HWND filterEdit_ = nullptr;
         HWND detailsStatic_ = nullptr;
         bool columnsCreated_ = false;
         rvrse::core::ProcessSnapshot snapshot_;
         rvrse::core::HandleSnapshot handleSnapshot_;
+        rvrse::core::NetworkSnapshot networkSnapshot_;
         std::vector<rvrse::core::ProcessEntry> visibleProcesses_;
         std::wstring filterText_;
         int sortColumn_ = 0;
@@ -1268,12 +1703,22 @@ namespace
 _Use_decl_annotations_
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
 {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        MessageBoxW(nullptr, L"Failed to initialize Winsock.", rvrse::kProductName, MB_OK | MB_ICONERROR);
+        return -1;
+    }
+
     MainWindow window(instance);
     if (!window.Create())
     {
         MessageBoxW(nullptr, L"Failed to create the main window.", rvrse::kProductName, MB_OK | MB_ICONERROR);
+        WSACleanup();
         return -1;
     }
 
-    return window.Run();
+    int result = window.Run();
+    WSACleanup();
+    return result;
 }

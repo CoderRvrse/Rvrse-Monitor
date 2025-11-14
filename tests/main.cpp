@@ -19,6 +19,9 @@
 #include <vector>
 
 #include "process_snapshot.h"
+#include "network_snapshot.h"
+#include "driver_interface.h"
+#include "driver_service.h"
 #include "handle_snapshot.h"
 #include "plugin_loader.h"
 #include "rvrse/common/formatting.h"
@@ -53,6 +56,51 @@ namespace
             return value;
         }
         return {};
+    }
+
+    void TestNetworkSnapshot()
+    {
+        auto snapshot = rvrse::core::NetworkSnapshot::Capture();
+        const auto &connections = snapshot.Connections();
+        if (!connections.empty())
+        {
+            std::uint32_t lastPid = connections.front().owningProcessId;
+            for (const auto &connection : connections)
+            {
+                if (connection.owningProcessId < lastPid)
+                {
+                    ReportFailure(L"Network connections were not sorted by process ID.");
+                    break;
+                }
+                lastPid = connection.owningProcessId;
+            }
+        }
+
+        DWORD currentPid = GetCurrentProcessId();
+        auto forCurrent = snapshot.ConnectionsForProcess(currentPid);
+        for (const auto &connection : forCurrent)
+        {
+            if (connection.owningProcessId != currentPid)
+            {
+                ReportFailure(L"ConnectionsForProcess returned entries that did not match the requested PID.");
+                break;
+            }
+        }
+
+        auto count = snapshot.ConnectionCountForProcess(currentPid);
+        if (count != forCurrent.size())
+        {
+            ReportFailure(L"ConnectionCountForProcess did not match the number of filtered entries.");
+        }
+    }
+
+    void TestDriverInterface()
+    {
+        auto status = rvrse::core::DriverInterface::EnsureDriverAvailable();
+        (void)status;
+
+        auto service = rvrse::core::DriverService::QueryStatus();
+        (void)service;
     }
 
     std::string FormatDecimal(double value)
@@ -682,6 +730,8 @@ int wmain(int argc, wchar_t **argv)
     BenchmarkHandleSnapshot();
     BenchmarkUtf8Conversion();
     TestPluginLoaderInitialization();
+    TestNetworkSnapshot();
+    TestDriverInterface();
 
     ExportBenchmarkTelemetry();
 

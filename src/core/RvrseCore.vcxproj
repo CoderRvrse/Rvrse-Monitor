@@ -72,12 +72,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="driver_interface.cpp" />
+    <ClCompile Include="driver_service.cpp" />
     <ClCompile Include="handle_snapshot.cpp" />
+    <ClCompile Include="network_snapshot.cpp" />
     <ClCompile Include="plugin_loader.cpp" />
     <ClCompile Include="process_snapshot.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="driver_interface.h" />
+    <ClInclude Include="driver_service.h" />
     <ClInclude Include="handle_snapshot.h" />
+    <ClInclude Include="network_snapshot.h" />
     <ClInclude Include="plugin_loader.h" />
     <ClInclude Include="process_snapshot.h" />
   </ItemGroup>

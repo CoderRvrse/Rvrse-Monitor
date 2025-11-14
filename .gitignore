@@ -3,6 +3,7 @@ build/
 x64/
 Debug/
 Release/
+dist/
 *.user
 *.suo
 *.sln.docstates
@@ -51,6 +52,10 @@ _ReSharper*/
 *.tlog
 *.log
 *.lastbuildstate
+build_release_output.txt
+ui_validation_log.txt
+/telemetry/
+**/telemetry/*.json
 
 # Intermediate directories
 ipch/

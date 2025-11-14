@@ -28,7 +28,9 @@ See `docs/build/local-project.md` for full details once populated.
 
 - Live process grid with sorting, filtering, and handle/thread summaries.
 - Module viewer window (double-click a process or click **Modules...**) that lists every loaded DLL with base address, image size, and full path.
+- Network connections explorer (click **Connections...**) that shows TCP/UDP endpoints per process with live state and endpoint details (requires elevation to inspect system-wide sockets).
 - Real-time CPU and memory graphs rendered with GDI, updating alongside the 4 s snapshot cadence so you can spot spikes instantly.
+- Optional kernel driver scaffold with user-mode health checks (ping/version IOCTLs) so privileged telemetry can plug in later.
 - Plugin system with a working Sample Logger that consumes process and handle broadcasts.
 - JSON performance telemetry exports plus automated Release packaging for reproducible builds.
 
@@ -51,6 +53,7 @@ See `docs/build/local-project.md` for full details once populated.
 - `docs/testing.md` – testing strategy, coverage expectations, benchmark guidance, and manual QA checklist.
 - `docs/contributing.md` – onboarding, workflow, coding standards, and PR checklist.
 - `docs/plugins.md` – plugin ABI roadmap, entry points, and loader plans.
+- `docs/driver/scaffold.md` – how to build/install the optional kernel-mode companion driver.
 - `docs/releases.md` – versioning rules, packaging instructions, and GitHub Release automation.
 - `CHANGELOG.md` – Keep-a-Changelog history that tracks every notable feature tier.
 

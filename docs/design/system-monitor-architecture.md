@@ -24,13 +24,15 @@ Core libraries should build as static libs/DLLs that feed the UI project. Keep i
 | Process/thread/handle UI  | MVP         | Core experience; reuse upstream data model terminology.    |
 | Module/service viewers    | MVP         | Enables parity with upstream properties dialogs.           |
 | Memory + CPU graphs       | MVP         | Native GDI plots inside summary pane.                      |
-| Network connections       | v1.x        | After MVP; depends on stable table and filtering UI.       |
+| Network connections       | MVP         | IPv4 TCP/UDP tables exposed via per-process viewer (requires elevation for system-wide data). |
 | Disk and I/O monitoring   | v1.x        | Requires ETW integration; plan as extension module.        |
 | Plugin system             | MVP         | Lightweight API for sampling features.                     |
 | Snapshot/diff utilities   | v2+         | Build once core enumeration is rock solid.                 |
 | Safety guardrails         | v1.x        | Read-only mode, protected process warnings.                |
 
-The summary pane now renders lightweight CPU and memory graphs via the `ResourceGraphView` control in `src/app/main.cpp`, giving immediate visual feedback without introducing a heavyweight charting dependency. Process snapshots also include module inventories (captured via `EnumProcessModulesEx`) so the UI can pop up a module viewer window for any selected process without re-querying the system.
+The summary pane now renders lightweight CPU and memory graphs via the `ResourceGraphView` control in `src/app/main.cpp`, giving immediate visual feedback without introducing a heavyweight charting dependency. Process snapshots expose module inventories via an on-demand helper so the UI can pop up a module viewer window for any selected process without re-querying everything upfront. Network telemetry (TCP/UDP tables from `GetExtended*Table`) feeds a per-process connection viewer that surfaces endpoints, ports, and TCP states.
+
+Driver scaffolding now lives under `src/driver/` with a shared protocol header so user-mode code can talk to `\\.\RvrseMonitor`. The initial driver only supports ping/version IOCTLs, but the plumbing (device name, service contract, user-mode fallbacks) is in place for future privileged features.
 
 ## Data flow
 
