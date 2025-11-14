@@ -6,6 +6,24 @@ Welcome to the Rvrse Monitor development team! This guide will help you get star
 
 ## 🚀 Quick Start (15 minutes)
 
+> **🎉 Repository Now Has Auto-Setup!**
+>
+> The Rvrse Monitor repository now automatically configures itself when you open it in Claude Code. No manual setup needed!
+>
+> **To get started:**
+> ```bash
+> git clone https://github.com/CoderRvrse/Rvrse-Monitor.git
+> cd Rvrse-Monitor
+> claude-code .
+> ```
+>
+> The SessionStart hook will automatically prepare your environment. Then follow the build instructions below.
+>
+> **Before every push, run:**
+> ```powershell
+> .\scripts\validate_before_push.ps1
+> ```
+
 ### 1. Clone the Repository
 ```bash
 git clone https://github.com/CoderRvrse/Rvrse-Monitor.git
