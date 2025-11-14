@@ -1,0 +1,66 @@
+name: CI Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore NuGet packages
+      run: msbuild RvrseMonitor.sln -t:Restore -p:Configuration=Release -p:Platform=x64
+
+    - name: Build Debug (x64)
+      run: msbuild RvrseMonitor.sln -p:Configuration=Debug -p:Platform=x64 -m -verbosity:minimal
+
+    - name: Build Release (x64)
+      run: msbuild RvrseMonitor.sln -p:Configuration=Release -p:Platform=x64 -m -verbosity:minimal
+
+    - name: Run Unit Tests
+      run: |
+        cd build\Release
+        .\RvrseMonitorTests.exe
+      continue-on-error: false
+
+    - name: Check Performance Metrics
+      shell: pwsh
+      run: |
+        $telemetryFile = Get-ChildItem -Path . -Filter "telemetry_*.json" -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($telemetryFile) {
+          Write-Host "Telemetry found: $($telemetryFile.FullName)"
+          $telemetry = Get-Content $telemetryFile.FullName | ConvertFrom-Json
+          Write-Host "Metrics:"
+          $telemetry.metrics | ForEach-Object {
+            Write-Host "  $($_.name): $($_.average_ms) ms"
+          }
+        } else {
+          Write-Warning "No telemetry file found"
+        }
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: rvrse-monitor-release
+        path: |
+          build/Release/RvrseMonitorApp.exe
+          build/Release/RvrseMonitorTests.exe
+        retention-days: 7
+
+    - name: Upload Telemetry
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: telemetry-data
+        path: |
+          **/telemetry_*.json
+        retention-days: 30
