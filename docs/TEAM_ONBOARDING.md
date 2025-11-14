@@ -2,6 +2,8 @@
 
 Welcome to the Rvrse Monitor development team! This guide will help you get started with remote development using Claude Code.
 
+**📘 IMPORTANT:** Before you start coding, read the [Claude Code Development Guide](CLAUDE_CODE_GUIDE.md) to learn how to work effectively with Claude Code, especially the **todo list system**.
+
 ---
 
 ## 🚀 Quick Start (15 minutes)
@@ -299,6 +301,7 @@ Rvrse Monitor/
    - Coordinate with office PC for driver validation
 
 ### Resources
+- **Claude Code Guide:** [CLAUDE_CODE_GUIDE.md](CLAUDE_CODE_GUIDE.md) ⭐ **Read this first!**
 - **Architecture:** [system-monitor-architecture.md](design/system-monitor-architecture.md)
 - **Testing:** [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md)
 - **Driver:** [docs/driver/scaffold.md](driver/scaffold.md)
