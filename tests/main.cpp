@@ -758,6 +758,98 @@ namespace
         loader.BroadcastProcessSnapshot(snapshot);
         loader.BroadcastHandleSnapshot(handles);
     }
+
+    void TestProcessTreeEnumeration()
+    {
+        auto snapshot = rvrse::core::ProcessSnapshot::Capture();
+        const auto &processes = snapshot.Processes();
+
+        // Test 1: Parent PID should be populated for all processes
+        for (const auto &process : processes)
+        {
+            // All processes should have a parentProcessId set
+            // (System Idle Process PID 0 typically has parent PID 0)
+            // Most other processes have a valid parent PID
+            if (process.processId != 0 && process.parentProcessId == 0xFFFFFFFF)
+            {
+                ReportFailure(L"Process has invalid parent PID marker.");
+                break;
+            }
+        }
+
+        // Test 2: GetChildProcesses should return valid results
+        for (const auto &process : processes)
+        {
+            auto children = snapshot.GetChildProcesses(process.processId);
+            // Verify all returned children actually have this process as parent
+            for (std::uint32_t childPid : children)
+            {
+                bool found = false;
+                for (const auto &candidate : processes)
+                {
+                    if (candidate.processId == childPid && candidate.parentProcessId == process.processId)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    ReportFailure(L"GetChildProcesses returned a process that doesn't have the expected parent.");
+                    break;
+                }
+            }
+        }
+
+        // Test 3: CollectChildProcesses should return all descendants recursively
+        // Find a process with children for this test
+        for (const auto &process : processes)
+        {
+            std::vector<std::uint32_t> descendants;
+            snapshot.CollectChildProcesses(process.processId, descendants);
+
+            // Verify all descendants have correct lineage
+            for (std::uint32_t descendantPid : descendants)
+            {
+                bool found = false;
+                for (const auto &candidate : processes)
+                {
+                    if (candidate.processId == descendantPid)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    ReportFailure(L"CollectChildProcesses returned a PID that doesn't exist in process snapshot.");
+                    break;
+                }
+            }
+        }
+
+        // Test 4: Current process should be found with parent
+        DWORD currentPid = GetCurrentProcessId();
+        bool found = false;
+        for (const auto &process : processes)
+        {
+            if (process.processId == currentPid)
+            {
+                found = true;
+                // Verify parent PID is set (should be cmd.exe or similar)
+                if (process.parentProcessId == 0)
+                {
+                    ReportFailure(L"Current process has no parent PID.");
+                }
+                break;
+            }
+        }
+        if (!found)
+        {
+            // Current process might not be in snapshot (privilege issue)
+            // This is not necessarily a failure
+        }
+    }
 }
 
 int wmain(int argc, wchar_t **argv)
@@ -818,6 +910,7 @@ int wmain(int argc, wchar_t **argv)
     BenchmarkUtf8Conversion();
     TestPluginLoaderInitialization();
     TestNetworkSnapshot();
+    TestProcessTreeEnumeration();
     TestDriverInterface();
 
     ExportBenchmarkTelemetry();

@@ -10,6 +10,15 @@ All notable changes to this project will be documented in this file. The format 
 - Module viewer window that surfaces every DLL loaded by the selected process complete with base address, size, and path metadata.
 - Per-process network connections viewer built on a new `NetworkSnapshot` capture that enumerates **IPv4 and IPv6** TCP/UDP endpoints with dual-stack support, proper address formatting ([addr]:port for IPv6), and graceful elevation detection.
 - Driver scaffold (shared IOCTL contract, user-mode interface, kernel skeleton) so privileged telemetry can plug in incrementally.
+- **Kill/Terminate Process feature (Tier 4 - Feature 1):**
+  - Right-click context menu on process list with "Terminate Process" and "Terminate Process Tree" options.
+  - Support for terminating individual processes using the Windows `TerminateProcess()` API.
+  - Recursive process tree termination that kills all child processes while respecting parent-child relationships.
+  - Parent PID tracking in `ProcessSnapshot` for accurate process hierarchy enumeration.
+  - Robust error handling for system-protected processes (System, csrss.exe, services.exe, lsass.exe, svchost.exe).
+  - User confirmation dialogs before terminating any process to prevent accidental termination.
+  - Success/failure feedback messages with count of terminated and failed processes.
+  - Unit tests validating process tree enumeration and child process collection.
 
 ### Changed
 - Documented the release workflow so contributors can cut local builds that match the CI output.

@@ -41,6 +41,9 @@ namespace
     constexpr int kDetailsStaticId = 0x3004;
     constexpr int kModulesButtonId = 0x3005;
     constexpr int kConnectionsButtonId = 0x3006;
+    // Context menu IDs
+    constexpr int kContextMenuTerminateProcess = 0x4001;
+    constexpr int kContextMenuTerminateTree = 0x4002;
 
     class ResourceGraphView
     {
@@ -1232,6 +1235,11 @@ class ModuleViewerWindow
                 ShowModulesForSelection();
                 return true;
             }
+            case NM_RCLICK:
+            {
+                OnListViewRightClick();
+                return true;
+            }
             default:
                 break;
             }
@@ -1660,6 +1668,229 @@ class ModuleViewerWindow
             ConnectionViewerWindow::Show(hwnd_, instance_, visibleProcesses_[selectedIndex], networkSnapshot_);
         }
 
+        void OnListViewRightClick()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            int selectedIndex = ListView_GetNextItem(listView_, -1, LVNI_SELECTED);
+            if (selectedIndex < 0 || selectedIndex >= static_cast<int>(visibleProcesses_.size()))
+            {
+                return;
+            }
+
+            // Get mouse position for context menu
+            POINT pt;
+            if (!GetCursorPos(&pt))
+            {
+                return;
+            }
+
+            // Create context menu
+            HMENU contextMenu = CreatePopupMenu();
+            if (!contextMenu)
+            {
+                return;
+            }
+
+            const auto &selectedProcess = visibleProcesses_[selectedIndex];
+            std::wstring menuText = L"Terminate Process";
+            if (!selectedProcess.imageName.empty())
+            {
+                menuText = L"Terminate " + selectedProcess.imageName;
+            }
+
+            AppendMenuW(contextMenu, MF_STRING, kContextMenuTerminateProcess, menuText.c_str());
+            AppendMenuW(contextMenu, MF_STRING, kContextMenuTerminateTree, L"Terminate Process Tree");
+
+            // Track which process was right-clicked
+            lastSelectedPid_ = selectedProcess.processId;
+
+            // Show context menu
+            int menuResult = TrackPopupMenu(
+                contextMenu,
+                TPM_RIGHTBUTTON | TPM_RETURNCMD,
+                pt.x,
+                pt.y,
+                0,
+                hwnd_,
+                nullptr);
+
+            // Handle menu selection
+            switch (menuResult)
+            {
+            case kContextMenuTerminateProcess:
+                TerminateSelectedProcess(false);
+                break;
+            case kContextMenuTerminateTree:
+                TerminateSelectedProcess(true);
+                break;
+            }
+
+            DestroyMenu(contextMenu);
+        }
+
+        void TerminateSelectedProcess(bool terminateTree)
+        {
+            if (lastSelectedPid_ == 0)
+            {
+                return;
+            }
+
+            // List of protected processes that should not be terminated
+            const wchar_t *protectedProcesses[] = {
+                L"System Idle Process",
+                L"System",
+                L"csrss.exe",
+                L"services.exe",
+                L"lsass.exe",
+                L"svchost.exe"
+            };
+
+            // Find the process entry
+            const rvrse::core::ProcessEntry *processEntry = nullptr;
+            for (const auto &process : snapshot_.Processes())
+            {
+                if (process.processId == lastSelectedPid_)
+                {
+                    processEntry = &process;
+                    break;
+                }
+            }
+
+            if (!processEntry)
+            {
+                MessageBoxW(hwnd_,
+                            L"Process not found. It may have already terminated.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONWARNING);
+                return;
+            }
+
+            // Check if process is protected
+            for (const auto &protectedName : protectedProcesses)
+            {
+                if (processEntry->imageName.find(protectedName) != std::wstring::npos)
+                {
+                    MessageBoxW(hwnd_,
+                                L"Cannot terminate system-protected process. Terminating this process would destabilize the system.",
+                                rvrse::kProductName,
+                                MB_OK | MB_ICONWARNING);
+                    return;
+                }
+            }
+
+            // Confirmation dialog
+            std::wstring confirmMsg = L"Are you sure you want to terminate ";
+            if (terminateTree)
+            {
+                confirmMsg += L"the process tree starting from \"" + processEntry->imageName + L"\" (PID " +
+                            std::to_wstring(processEntry->processId) + L") and all child processes?";
+            }
+            else
+            {
+                confirmMsg += L"\"" + processEntry->imageName + L"\" (PID " +
+                            std::to_wstring(processEntry->processId) + L")?";
+            }
+
+            int result = MessageBoxW(hwnd_,
+                                    confirmMsg.c_str(),
+                                    rvrse::kProductName,
+                                    MB_YESNO | MB_ICONQUESTION);
+
+            if (result != IDYES)
+            {
+                return;
+            }
+
+            if (terminateTree)
+            {
+                TerminateProcessTree(lastSelectedPid_);
+            }
+            else
+            {
+                TerminateSingleProcess(lastSelectedPid_);
+            }
+
+            // Refresh the process list
+            RefreshProcesses();
+        }
+
+        void TerminateSingleProcess(std::uint32_t processId)
+        {
+            HANDLE process = OpenProcess(PROCESS_TERMINATE, FALSE, processId);
+            if (!process)
+            {
+                MessageBoxW(hwnd_,
+                            L"Failed to open process. Access denied or process already terminated.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONERROR);
+                return;
+            }
+
+            if (!TerminateProcess(process, 1))
+            {
+                CloseHandle(process);
+                MessageBoxW(hwnd_,
+                            L"Failed to terminate process.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONERROR);
+                return;
+            }
+
+            CloseHandle(process);
+            MessageBoxW(hwnd_,
+                        L"Process terminated successfully.",
+                        rvrse::kProductName,
+                        MB_OK | MB_ICONINFORMATION);
+        }
+
+        void TerminateProcessTree(std::uint32_t processId)
+        {
+            // Collect all child processes recursively
+            std::vector<std::uint32_t> allProcesses;
+            allProcesses.push_back(processId);
+            snapshot_.CollectChildProcesses(processId, allProcesses);
+
+            int terminatedCount = 0;
+            int failedCount = 0;
+
+            // Terminate from leaf processes to root (reverse order to avoid breaking tree relationships)
+            for (int i = static_cast<int>(allProcesses.size()) - 1; i >= 0; --i)
+            {
+                std::uint32_t pid = allProcesses[i];
+                HANDLE process = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+                if (!process)
+                {
+                    ++failedCount;
+                    continue;
+                }
+
+                if (TerminateProcess(process, 1))
+                {
+                    ++terminatedCount;
+                }
+                else
+                {
+                    ++failedCount;
+                }
+
+                CloseHandle(process);
+            }
+
+            wchar_t resultMsg[256];
+            StringCchPrintfW(resultMsg, std::size(resultMsg),
+                           L"Terminated %d processes. Failed: %d",
+                           terminatedCount, failedCount);
+
+            MessageBoxW(hwnd_,
+                        resultMsg,
+                        rvrse::kProductName,
+                        failedCount > 0 ? MB_OK | MB_ICONWARNING : MB_OK | MB_ICONINFORMATION);
+        }
+
         std::wstring FormatProcessDetails(const rvrse::core::ProcessEntry &process) const
         {
             bool connectionUnavailable = networkSnapshot_.AccessDenied() || networkSnapshot_.CaptureFailed();
@@ -1746,6 +1977,7 @@ class ModuleViewerWindow
         ULARGE_INTEGER previousKernelTime_{};
         ULARGE_INTEGER previousUserTime_{};
         bool hasCpuBaseline_ = false;
+        std::uint32_t lastSelectedPid_ = 0;
     };
 }
 

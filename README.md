@@ -27,6 +27,7 @@ See `docs/build/local-project.md` for full details once populated.
 ## Features
 
 - Live process grid with sorting, filtering, and handle/thread summaries.
+- **Kill/Terminate Process (Tier 4):** Right-click context menu with "Terminate Process" and "Terminate Process Tree" options to gracefully kill individual processes or entire process hierarchies with protection against system-critical processes.
 - Module viewer window (double-click a process or click **Modules...**) that lists every loaded DLL with base address, image size, and full path.
 - Network connections explorer (click **Connections...**) with full **IPv4 and IPv6 dual-stack support** that shows TCP/UDP endpoints per process, live connection states, and formatted endpoint details [addr]:port (requires elevation to inspect system-wide sockets).
 - Real-time CPU and memory graphs rendered with GDI, updating alongside the 4 s snapshot cadence so you can spot spikes instantly.

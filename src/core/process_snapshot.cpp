@@ -231,6 +231,7 @@ namespace rvrse::core
         {
             ProcessEntry entry{};
             entry.processId = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(current->UniqueProcessId));
+            entry.parentProcessId = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(current->InheritedFromUniqueProcessId));
             entry.threadCount = current->NumberOfThreads;
             entry.imageName = CaptureImageName(current->ImageName);
             entry.workingSetBytes = static_cast<std::uint64_t>(current->WorkingSetSize);
@@ -276,5 +277,30 @@ namespace rvrse::core
     std::vector<ModuleEntry> ProcessSnapshot::EnumerateModules(std::uint32_t processId)
     {
         return EnumerateModulesInternal(processId);
+    }
+
+    std::vector<std::uint32_t> ProcessSnapshot::GetChildProcesses(std::uint32_t parentProcessId) const
+    {
+        std::vector<std::uint32_t> children;
+        for (const auto &process : processes_)
+        {
+            if (process.parentProcessId == parentProcessId)
+            {
+                children.push_back(process.processId);
+            }
+        }
+        return children;
+    }
+
+    void ProcessSnapshot::CollectChildProcesses(std::uint32_t processId, std::vector<std::uint32_t> &childProcesses) const
+    {
+        // Get direct children
+        auto directChildren = GetChildProcesses(processId);
+        for (std::uint32_t childPid : directChildren)
+        {
+            childProcesses.push_back(childPid);
+            // Recursively collect grandchildren
+            CollectChildProcesses(childPid, childProcesses);
+        }
     }
 }
