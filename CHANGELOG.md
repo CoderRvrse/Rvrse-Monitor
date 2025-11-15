@@ -29,6 +29,13 @@ All notable changes to this project will be documented in this file. The format 
   - Success/failure feedback messages with detailed error information
   - Automatic process list refresh after termination
   - Unit tests for process tree enumeration and parent-child relationship validation
+- **Process Search/Filter** with real-time filtering and visual feedback:
+  - Real-time text-based filtering in process list (filters on EN_CHANGE event)
+  - Case-insensitive substring matching for process names
+  - Exact PID matching when filter text contains only digits
+  - Clear button to quickly reset filter and show all processes
+  - Visual feedback in summary panel showing "Showing X of Y processes" when filtered
+  - Automatic whitespace trimming for better search accuracy
 - Driver scaffold (shared IOCTL contract, user-mode interface, kernel skeleton) so privileged telemetry can plug in incrementally.
 - Claude Code SessionStart hook for automatic development environment setup
 - Comprehensive Claude Code development guide with todo list best practices

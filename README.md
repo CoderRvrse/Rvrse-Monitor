@@ -26,7 +26,8 @@ See `docs/build/local-project.md` for full details once populated.
 
 ## Features
 
-- Live process grid with sorting, filtering, and handle/thread summaries.
+- Live process grid with sorting and handle/thread summaries.
+- **Real-time search/filter** (text box in toolbar) with case-insensitive process name matching, PID filtering, clear button, and visual feedback showing filtered count.
 - **Process termination controls** (right-click any process) with single process or full process tree termination, confirmation dialogs, and error handling for protected system processes.
 - Module viewer window (double-click a process or click **Modules...**) that lists every loaded DLL with base address, image size, and full path.
 - **Network connections explorer** (click **Connections...**) with full IPv4 and IPv6 support that shows TCP/UDP endpoints per process with live connection state (ESTABLISHED, LISTEN, etc.) and properly formatted endpoint details including IPv6 bracket notation ([addr]:port). Performance optimized with <10ms snapshot time for dual-stack enumeration (requires elevation to inspect system-wide sockets).

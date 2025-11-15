@@ -40,6 +40,7 @@ namespace
     constexpr int kDetailsStaticId = 0x3004;
     constexpr int kModulesButtonId = 0x3005;
     constexpr int kConnectionsButtonId = 0x3006;
+    constexpr int kClearFilterButtonId = 0x3007;
     constexpr int kMenuTerminateId = 0x4001;
     constexpr int kMenuTerminateTreeId = 0x4002;
 
@@ -1101,6 +1102,20 @@ class ModuleViewerWindow
                 instance_,
                 nullptr);
 
+            clearFilterButton_ = CreateWindowExW(
+                0,
+                L"BUTTON",
+                L"Clear",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                reinterpret_cast<HMENU>(kClearFilterButtonId),
+                instance_,
+                nullptr);
+
             listView_ = CreateWindowExW(
                 WS_EX_CLIENTEDGE,
                 WC_LISTVIEWW,
@@ -1208,6 +1223,10 @@ class ModuleViewerWindow
             else if (controlId == kConnectionsButtonId && code == BN_CLICKED)
             {
                 ShowConnectionsForSelection();
+            }
+            else if (controlId == kClearFilterButtonId && code == BN_CLICKED)
+            {
+                ClearFilter();
             }
             else if (controlId == kMenuTerminateId)
             {
@@ -1435,11 +1454,18 @@ class ModuleViewerWindow
                 MoveWindow(connectionsButton_, connectionsLeft, padding, connectionsButtonWidth, buttonHeight, TRUE);
             }
 
+            constexpr int clearButtonWidth = 50;
             if (filterEdit_)
             {
                 int editLeft = padding + buttonWidth + modulesButtonWidth + connectionsButtonWidth + (buttonSpacing * 3);
-                int editWidth = std::max(120, width - editLeft - padding);
+                int editWidth = std::max(120, width - editLeft - clearButtonWidth - buttonSpacing - padding);
                 MoveWindow(filterEdit_, editLeft, padding, editWidth, buttonHeight, TRUE);
+
+                if (clearFilterButton_)
+                {
+                    int clearLeft = editLeft + editWidth + buttonSpacing;
+                    MoveWindow(clearFilterButton_, clearLeft, padding, clearButtonWidth, buttonHeight, TRUE);
+                }
             }
 
             int detailsTop = height - detailsHeight;
@@ -1485,6 +1511,17 @@ class ModuleViewerWindow
             }
             ApplyFilterAndSort();
             UpdateDetailsPanel();
+        }
+
+        void ClearFilter()
+        {
+            if (filterEdit_)
+            {
+                SetWindowTextW(filterEdit_, L"");
+                filterText_.clear();
+                ApplyFilterAndSort();
+                UpdateDetailsPanel();
+            }
         }
 
         void ApplyFilterAndSort()
@@ -1893,10 +1930,24 @@ class ModuleViewerWindow
                 connectionSummary = std::to_wstring(networkSnapshot_.Connections().size());
             }
 
+            // Build process count string with filter feedback
+            std::wstring processCountStr;
+            const auto visibleCount = visibleProcesses_.size();
+            if (!filterText_.empty() && visibleCount != totalProcesses)
+            {
+                wchar_t countBuffer[64];
+                StringCchPrintfW(countBuffer, std::size(countBuffer), L"Showing %zu of %zu", visibleCount, totalProcesses);
+                processCountStr = countBuffer;
+            }
+            else
+            {
+                processCountStr = std::to_wstring(totalProcesses);
+            }
+
             wchar_t buffer[256];
             StringCchPrintfW(buffer, std::size(buffer),
-                             L"Processes: %zu | Threads: %llu | Working Set Total: %s | Connections: %s | CPU: %.1f%% | Memory: %.1f%%",
-                             totalProcesses,
+                             L"Processes: %s | Threads: %llu | Working Set Total: %s | Connections: %s | CPU: %.1f%% | Memory: %.1f%%",
+                             processCountStr.c_str(),
                              static_cast<unsigned long long>(totalThreads),
                              workingSet.c_str(),
                              connectionSummary.c_str(),
@@ -1912,6 +1963,7 @@ class ModuleViewerWindow
         HWND modulesButton_ = nullptr;
         HWND connectionsButton_ = nullptr;
         HWND filterEdit_ = nullptr;
+        HWND clearFilterButton_ = nullptr;
         HWND detailsStatic_ = nullptr;
         bool columnsCreated_ = false;
         rvrse::core::ProcessSnapshot snapshot_;
