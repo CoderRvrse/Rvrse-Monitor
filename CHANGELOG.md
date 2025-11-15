@@ -26,6 +26,22 @@ All notable changes to this project will be documented in this file. The format 
   - Automatic whitespace trimming for robust filtering.
   - Visual feedback in summary panel when filters are active.
   - Keyboard support: Type to filter, click Clear to reset, Enter to apply filter.
+- **Suspend/Resume Process feature (Tier 4 - Feature 3):**
+  - Right-click context menu options to suspend and resume individual processes.
+  - Thread-based suspension using Windows `SuspendThread()` API for complete process freezing.
+  - Resume functionality using Windows `ResumeThread()` API to unfreeze suspended processes.
+  - Iterates through all threads in the target process for complete suspension/resumption.
+  - Success/failure feedback showing number of threads affected.
+  - Error handling for access denied scenarios (e.g., system-protected processes).
+  - Automatic process list refresh after suspension/resumption operations.
+- **Process Priority Control feature (Tier 4 - Feature 4):**
+  - Right-click context menu submenu "Set Priority" with 6 priority level options.
+  - Supported priority levels: Realtime, High, Above Normal, Normal, Below Normal, Low.
+  - Uses Windows `SetPriorityClass()` API with PROCESS_SET_INFORMATION access rights.
+  - Confirmation dialogs before applying priority changes to prevent accidental system degradation.
+  - Special privilege handling: Realtime priority requires administrator privileges with clear error messages.
+  - Readable priority names in all dialogs and success messages.
+  - Automatic process list refresh after successful priority changes.
 
 ### Changed
 - Documented the release workflow so contributors can cut local builds that match the CI output.

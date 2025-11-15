@@ -45,6 +45,14 @@ namespace
     // Context menu IDs
     constexpr int kContextMenuTerminateProcess = 0x4001;
     constexpr int kContextMenuTerminateTree = 0x4002;
+    constexpr int kContextMenuSuspendProcess = 0x4003;
+    constexpr int kContextMenuResumeProcess = 0x4004;
+    constexpr int kContextMenuPriorityRealtime = 0x4010;
+    constexpr int kContextMenuPriorityHigh = 0x4011;
+    constexpr int kContextMenuPriorityAboveNormal = 0x4012;
+    constexpr int kContextMenuPriorityNormal = 0x4013;
+    constexpr int kContextMenuPriorityBelowNormal = 0x4014;
+    constexpr int kContextMenuPriorityLow = 0x4015;
 
     class ResourceGraphView
     {
@@ -1740,6 +1748,23 @@ class ModuleViewerWindow
 
             AppendMenuW(contextMenu, MF_STRING, kContextMenuTerminateProcess, menuText.c_str());
             AppendMenuW(contextMenu, MF_STRING, kContextMenuTerminateTree, L"Terminate Process Tree");
+            AppendMenuW(contextMenu, MF_SEPARATOR, 0, nullptr);
+            AppendMenuW(contextMenu, MF_STRING, kContextMenuSuspendProcess, L"&Suspend Process");
+            AppendMenuW(contextMenu, MF_STRING, kContextMenuResumeProcess, L"&Resume Process");
+            AppendMenuW(contextMenu, MF_SEPARATOR, 0, nullptr);
+
+            // Create priority submenu
+            HMENU priorityMenu = CreatePopupMenu();
+            if (priorityMenu)
+            {
+                AppendMenuW(priorityMenu, MF_STRING, kContextMenuPriorityRealtime, L"&Realtime");
+                AppendMenuW(priorityMenu, MF_STRING, kContextMenuPriorityHigh, L"&High");
+                AppendMenuW(priorityMenu, MF_STRING, kContextMenuPriorityAboveNormal, L"&Above Normal");
+                AppendMenuW(priorityMenu, MF_STRING, kContextMenuPriorityNormal, L"&Normal");
+                AppendMenuW(priorityMenu, MF_STRING, kContextMenuPriorityBelowNormal, L"&Below Normal");
+                AppendMenuW(priorityMenu, MF_STRING, kContextMenuPriorityLow, L"&Low");
+                AppendMenuW(contextMenu, MF_STRING | MF_POPUP, reinterpret_cast<UINT_PTR>(priorityMenu), L"Set &Priority");
+            }
 
             // Track which process was right-clicked
             lastSelectedPid_ = selectedProcess.processId;
@@ -1762,6 +1787,30 @@ class ModuleViewerWindow
                 break;
             case kContextMenuTerminateTree:
                 TerminateSelectedProcess(true);
+                break;
+            case kContextMenuSuspendProcess:
+                SuspendSelectedProcess();
+                break;
+            case kContextMenuResumeProcess:
+                ResumeSelectedProcess();
+                break;
+            case kContextMenuPriorityRealtime:
+                SetSelectedProcessPriority(REALTIME_PRIORITY_CLASS);
+                break;
+            case kContextMenuPriorityHigh:
+                SetSelectedProcessPriority(HIGH_PRIORITY_CLASS);
+                break;
+            case kContextMenuPriorityAboveNormal:
+                SetSelectedProcessPriority(ABOVE_NORMAL_PRIORITY_CLASS);
+                break;
+            case kContextMenuPriorityNormal:
+                SetSelectedProcessPriority(NORMAL_PRIORITY_CLASS);
+                break;
+            case kContextMenuPriorityBelowNormal:
+                SetSelectedProcessPriority(BELOW_NORMAL_PRIORITY_CLASS);
+                break;
+            case kContextMenuPriorityLow:
+                SetSelectedProcessPriority(IDLE_PRIORITY_CLASS);
                 break;
             }
 
@@ -1925,6 +1974,272 @@ class ModuleViewerWindow
                         resultMsg,
                         rvrse::kProductName,
                         failedCount > 0 ? MB_OK | MB_ICONWARNING : MB_OK | MB_ICONINFORMATION);
+        }
+
+        void SuspendSelectedProcess()
+        {
+            if (lastSelectedPid_ == 0)
+            {
+                return;
+            }
+
+            // Find the process entry
+            const rvrse::core::ProcessEntry *processEntry = nullptr;
+            for (const auto &process : snapshot_.Processes())
+            {
+                if (process.processId == lastSelectedPid_)
+                {
+                    processEntry = &process;
+                    break;
+                }
+            }
+
+            if (!processEntry)
+            {
+                MessageBoxW(hwnd_,
+                            L"Process not found. It may have already terminated.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONWARNING);
+                return;
+            }
+
+            int suspendedCount = 0;
+            int failedCount = 0;
+
+            // Suspend all threads in the process
+            for (const auto &thread : processEntry->threads)
+            {
+                HANDLE threadHandle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread.threadId);
+                if (!threadHandle)
+                {
+                    ++failedCount;
+                    continue;
+                }
+
+                if (SuspendThread(threadHandle) != static_cast<DWORD>(-1))
+                {
+                    ++suspendedCount;
+                }
+                else
+                {
+                    ++failedCount;
+                }
+
+                CloseHandle(threadHandle);
+            }
+
+            wchar_t resultMsg[256];
+            if (suspendedCount > 0)
+            {
+                StringCchPrintfW(resultMsg, std::size(resultMsg),
+                               L"Suspended %d threads. Failed: %d",
+                               suspendedCount, failedCount);
+                MessageBoxW(hwnd_,
+                            resultMsg,
+                            rvrse::kProductName,
+                            failedCount > 0 ? MB_OK | MB_ICONWARNING : MB_OK | MB_ICONINFORMATION);
+            }
+            else
+            {
+                MessageBoxW(hwnd_,
+                            L"Failed to suspend any threads. Access denied or no threads found.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONERROR);
+            }
+
+            RefreshProcesses();
+        }
+
+        void ResumeSelectedProcess()
+        {
+            if (lastSelectedPid_ == 0)
+            {
+                return;
+            }
+
+            // Find the process entry
+            const rvrse::core::ProcessEntry *processEntry = nullptr;
+            for (const auto &process : snapshot_.Processes())
+            {
+                if (process.processId == lastSelectedPid_)
+                {
+                    processEntry = &process;
+                    break;
+                }
+            }
+
+            if (!processEntry)
+            {
+                MessageBoxW(hwnd_,
+                            L"Process not found. It may have already terminated.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONWARNING);
+                return;
+            }
+
+            int resumedCount = 0;
+            int failedCount = 0;
+
+            // Resume all threads in the process
+            for (const auto &thread : processEntry->threads)
+            {
+                HANDLE threadHandle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread.threadId);
+                if (!threadHandle)
+                {
+                    ++failedCount;
+                    continue;
+                }
+
+                if (ResumeThread(threadHandle) != static_cast<DWORD>(-1))
+                {
+                    ++resumedCount;
+                }
+                else
+                {
+                    ++failedCount;
+                }
+
+                CloseHandle(threadHandle);
+            }
+
+            wchar_t resultMsg[256];
+            if (resumedCount > 0)
+            {
+                StringCchPrintfW(resultMsg, std::size(resultMsg),
+                               L"Resumed %d threads. Failed: %d",
+                               resumedCount, failedCount);
+                MessageBoxW(hwnd_,
+                            resultMsg,
+                            rvrse::kProductName,
+                            failedCount > 0 ? MB_OK | MB_ICONWARNING : MB_OK | MB_ICONINFORMATION);
+            }
+            else
+            {
+                MessageBoxW(hwnd_,
+                            L"Failed to resume any threads. Access denied or no threads found.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONERROR);
+            }
+
+            RefreshProcesses();
+        }
+
+        void SetSelectedProcessPriority(DWORD priorityClass)
+        {
+            if (lastSelectedPid_ == 0)
+            {
+                return;
+            }
+
+            // Find the process entry
+            const rvrse::core::ProcessEntry *processEntry = nullptr;
+            for (const auto &process : snapshot_.Processes())
+            {
+                if (process.processId == lastSelectedPid_)
+                {
+                    processEntry = &process;
+                    break;
+                }
+            }
+
+            if (!processEntry)
+            {
+                MessageBoxW(hwnd_,
+                            L"Process not found. It may have already terminated.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONWARNING);
+                return;
+            }
+
+            // Map priority class to readable name
+            const wchar_t *priorityName = L"Unknown";
+            switch (priorityClass)
+            {
+            case REALTIME_PRIORITY_CLASS:
+                priorityName = L"Realtime";
+                break;
+            case HIGH_PRIORITY_CLASS:
+                priorityName = L"High";
+                break;
+            case ABOVE_NORMAL_PRIORITY_CLASS:
+                priorityName = L"Above Normal";
+                break;
+            case NORMAL_PRIORITY_CLASS:
+                priorityName = L"Normal";
+                break;
+            case BELOW_NORMAL_PRIORITY_CLASS:
+                priorityName = L"Below Normal";
+                break;
+            case IDLE_PRIORITY_CLASS:
+                priorityName = L"Low";
+                break;
+            }
+
+            // Show confirmation dialog
+            wchar_t confirmMsg[512];
+            StringCchPrintfW(confirmMsg, std::size(confirmMsg),
+                           L"Set priority of '%s' (PID %u) to %s?\n\nThis may affect system performance.",
+                           processEntry->imageName.empty() ? L"[Unnamed]" : processEntry->imageName.c_str(),
+                           processEntry->processId,
+                           priorityName);
+
+            int response = MessageBoxW(hwnd_,
+                                      confirmMsg,
+                                      rvrse::kProductName,
+                                      MB_YESNO | MB_ICONQUESTION);
+
+            if (response != IDYES)
+            {
+                return;
+            }
+
+            // Open process with PROCESS_SET_INFORMATION access
+            HANDLE process = OpenProcess(PROCESS_SET_INFORMATION, FALSE, lastSelectedPid_);
+            if (!process)
+            {
+                MessageBoxW(hwnd_,
+                            L"Failed to open process. Access denied or process already terminated.",
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONERROR);
+                return;
+            }
+
+            // Set process priority
+            if (SetPriorityClass(process, priorityClass))
+            {
+                wchar_t successMsg[512];
+                StringCchPrintfW(successMsg, std::size(successMsg),
+                               L"Successfully set priority of '%s' (PID %u) to %s.",
+                               processEntry->imageName.empty() ? L"[Unnamed]" : processEntry->imageName.c_str(),
+                               processEntry->processId,
+                               priorityName);
+
+                MessageBoxW(hwnd_,
+                            successMsg,
+                            rvrse::kProductName,
+                            MB_OK | MB_ICONINFORMATION);
+                RefreshProcesses();
+            }
+            else
+            {
+                DWORD error = GetLastError();
+                if (error == ERROR_ACCESS_DENIED)
+                {
+                    MessageBoxW(hwnd_,
+                                L"Access denied. Realtime priority requires administrator privileges.",
+                                rvrse::kProductName,
+                                MB_OK | MB_ICONERROR);
+                }
+                else
+                {
+                    MessageBoxW(hwnd_,
+                                L"Failed to set process priority.",
+                                rvrse::kProductName,
+                                MB_OK | MB_ICONERROR);
+                }
+            }
+
+            CloseHandle(process);
         }
 
         std::wstring FormatProcessDetails(const rvrse::core::ProcessEntry &process) const
