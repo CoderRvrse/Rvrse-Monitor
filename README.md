@@ -50,8 +50,10 @@ See `docs/build/local-project.md` for full details once populated.
 ## Documentation & Contributing
 
 **For Remote Developers (Claude Code):**
-- `docs/CLAUDE_CODE_GUIDE.md` ⭐ **Start here!** Learn how to use the todo list system and work effectively with Claude Code
+- `docs/START_HERE.md` 🎯 **NEW TEAM MEMBERS START HERE!** Complete 30-minute quick start guide
+- `docs/CLAUDE_CODE_GUIDE.md` ⭐ Learn how to use the todo list system and work effectively with Claude Code
 - `docs/TEAM_ONBOARDING.md` – Complete onboarding guide for remote development
+- `docs/FEATURE_ROADMAP.md` – 3-month plan to 90% Process Hacker parity (15 features)
 - `docs/TESTING_CHECKLIST.md` – Mandatory testing procedures before every push
 - `scripts/validate_before_push.ps1` – Automated pre-push validation (run this before every push!)
 
