@@ -762,11 +762,11 @@ class ModuleViewerWindow
                 item.pszText = protocolText.data();
                 ListView_InsertItem(listView_, &item);
 
-                auto localEndpoint = FormatEndpoint(connection.localAddress, connection.localPort);
+                auto localEndpoint = FormatEndpoint(connection);
                 ListView_SetItemText(listView_, index, 1, localEndpoint.data());
 
                 auto remoteEndpoint = connection.protocol == rvrse::core::TransportProtocol::Tcp
-                                           ? FormatEndpoint(connection.remoteAddress, connection.remotePort)
+                                           ? FormatRemoteEndpoint(connection)
                                            : std::wstring(L"-");
                 ListView_SetItemText(listView_, index, 2, remoteEndpoint.data());
 
@@ -800,28 +800,89 @@ class ModuleViewerWindow
         {
         }
 
-        static std::wstring FormatEndpoint(std::uint32_t address, std::uint16_t port)
+        static std::wstring FormatEndpoint(const rvrse::core::ConnectionEntry &connection)
         {
-            if (address == 0)
+            wchar_t buffer[INET6_ADDRSTRLEN] = L"";
+
+            if (connection.family == rvrse::core::AddressFamily::IPv4)
             {
-                return std::wstring(L"-");
+                if (connection.localAddress == 0)
+                {
+                    return std::wstring(L"-");
+                }
+
+                IN_ADDR addr{};
+                addr.S_un.S_addr = connection.localAddress;
+                if (!InetNtopW(AF_INET, &addr, buffer, static_cast<DWORD>(std::size(buffer))))
+                {
+                    StringCchCopyW(buffer, std::size(buffer), L"0.0.0.0");
+                }
+            }
+            else // IPv6
+            {
+                if (!InetNtopW(AF_INET6, const_cast<std::uint8_t *>(connection.localAddress6), buffer, static_cast<DWORD>(std::size(buffer))))
+                {
+                    StringCchCopyW(buffer, std::size(buffer), L"::");
+                }
             }
 
-            IN_ADDR addr{};
-            addr.S_un.S_addr = address;
-            wchar_t buffer[INET_ADDRSTRLEN] = L"";
-            if (!InetNtopW(AF_INET, &addr, buffer, static_cast<DWORD>(std::size(buffer))))
-            {
-                StringCchCopyW(buffer, std::size(buffer), L"0.0.0.0");
-            }
-
-            if (port == 0)
+            if (connection.localPort == 0)
             {
                 return std::wstring(buffer);
             }
 
-            wchar_t endpoint[64];
-            StringCchPrintfW(endpoint, std::size(endpoint), L"%s:%u", buffer, port);
+            wchar_t endpoint[128];
+            if (connection.family == rvrse::core::AddressFamily::IPv6)
+            {
+                StringCchPrintfW(endpoint, std::size(endpoint), L"[%s]:%u", buffer, connection.localPort);
+            }
+            else
+            {
+                StringCchPrintfW(endpoint, std::size(endpoint), L"%s:%u", buffer, connection.localPort);
+            }
+            return endpoint;
+        }
+
+        static std::wstring FormatRemoteEndpoint(const rvrse::core::ConnectionEntry &connection)
+        {
+            wchar_t buffer[INET6_ADDRSTRLEN] = L"";
+
+            if (connection.family == rvrse::core::AddressFamily::IPv4)
+            {
+                if (connection.remoteAddress == 0)
+                {
+                    return std::wstring(L"-");
+                }
+
+                IN_ADDR addr{};
+                addr.S_un.S_addr = connection.remoteAddress;
+                if (!InetNtopW(AF_INET, &addr, buffer, static_cast<DWORD>(std::size(buffer))))
+                {
+                    StringCchCopyW(buffer, std::size(buffer), L"0.0.0.0");
+                }
+            }
+            else // IPv6
+            {
+                if (!InetNtopW(AF_INET6, const_cast<std::uint8_t *>(connection.remoteAddress6), buffer, static_cast<DWORD>(std::size(buffer))))
+                {
+                    StringCchCopyW(buffer, std::size(buffer), L"::");
+                }
+            }
+
+            if (connection.remotePort == 0)
+            {
+                return std::wstring(buffer);
+            }
+
+            wchar_t endpoint[128];
+            if (connection.family == rvrse::core::AddressFamily::IPv6)
+            {
+                StringCchPrintfW(endpoint, std::size(endpoint), L"[%s]:%u", buffer, connection.remotePort);
+            }
+            else
+            {
+                StringCchPrintfW(endpoint, std::size(endpoint), L"%s:%u", buffer, connection.remotePort);
+            }
             return endpoint;
         }
 

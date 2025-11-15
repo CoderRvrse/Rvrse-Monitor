@@ -74,6 +74,17 @@ namespace
                 }
                 lastPid = connection.owningProcessId;
             }
+
+            // Verify IPv4 and IPv6 family assignment is consistent
+            for (const auto &connection : connections)
+            {
+                if (connection.family != rvrse::core::AddressFamily::IPv4 &&
+                    connection.family != rvrse::core::AddressFamily::IPv6)
+                {
+                    ReportFailure(L"Network connection has invalid address family.");
+                    break;
+                }
+            }
         }
 
         DWORD currentPid = GetCurrentProcessId();
@@ -615,6 +626,33 @@ namespace
                               passed);
     }
 
+    void BenchmarkNetworkSnapshot()
+    {
+        const int iterations = 5;
+        const double thresholdMs = 10.0;
+        double averageMs = MeasureAverageMilliseconds(
+            []()
+            {
+                auto snapshot = rvrse::core::NetworkSnapshot::Capture();
+                volatile std::size_t count = snapshot.Connections().size();
+                (void)count;
+            },
+            iterations);
+
+        std::fwprintf(stdout, L"[PERF] NetworkSnapshot avg: %.2f ms\n", averageMs);
+        const bool passed = averageMs <= thresholdMs;
+        if (!passed)
+        {
+            ReportFailure(L"NetworkSnapshot performance regression detected.");
+        }
+
+        RecordBenchmarkResult(L"NetworkSnapshot",
+                              averageMs,
+                              thresholdMs,
+                              iterations,
+                              passed);
+    }
+
     void BenchmarkUtf8Conversion()
     {
         const int iterations = 1000;
@@ -728,6 +766,7 @@ int wmain(int argc, wchar_t **argv)
     TestHandleSnapshotAccessDenied();
     BenchmarkProcessSnapshot();
     BenchmarkHandleSnapshot();
+    BenchmarkNetworkSnapshot();
     BenchmarkUtf8Conversion();
     TestPluginLoaderInitialization();
     TestNetworkSnapshot();

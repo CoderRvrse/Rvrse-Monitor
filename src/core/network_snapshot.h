@@ -13,13 +13,22 @@ namespace rvrse::core
         Udp
     };
 
+    enum class AddressFamily
+    {
+        IPv4,
+        IPv6
+    };
+
     struct ConnectionEntry
     {
         TransportProtocol protocol = TransportProtocol::Tcp;
-        std::uint32_t localAddress = 0;
+        AddressFamily family = AddressFamily::IPv4;
+        std::uint32_t localAddress = 0;        // IPv4: host byte order
         std::uint16_t localPort = 0;
-        std::uint32_t remoteAddress = 0;
+        std::uint32_t remoteAddress = 0;       // IPv4: host byte order
         std::uint16_t remotePort = 0;
+        std::uint8_t localAddress6[16] = {};   // IPv6: network byte order
+        std::uint8_t remoteAddress6[16] = {};  // IPv6: network byte order
         std::uint32_t owningProcessId = 0;
         std::uint8_t state = 0;
     };
