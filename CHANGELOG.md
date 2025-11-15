@@ -19,6 +19,13 @@ All notable changes to this project will be documented in this file. The format 
   - User confirmation dialogs before terminating any process to prevent accidental termination.
   - Success/failure feedback messages with count of terminated and failed processes.
   - Unit tests validating process tree enumeration and child process collection.
+- **Process Search/Filter Box enhancement (Tier 4 - Feature 2):**
+  - Clear button next to filter text box for quick reset of all filtering.
+  - Real-time case-insensitive substring filtering on process names as you type.
+  - Exact PID matching when filter input contains only digits (e.g., type "1234" to find process with PID 1234).
+  - Automatic whitespace trimming for robust filtering.
+  - Visual feedback in summary panel when filters are active.
+  - Keyboard support: Type to filter, click Clear to reset, Enter to apply filter.
 
 ### Changed
 - Documented the release workflow so contributors can cut local builds that match the CI output.

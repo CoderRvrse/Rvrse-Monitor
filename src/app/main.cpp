@@ -41,6 +41,7 @@ namespace
     constexpr int kDetailsStaticId = 0x3004;
     constexpr int kModulesButtonId = 0x3005;
     constexpr int kConnectionsButtonId = 0x3006;
+    constexpr int kClearFilterButtonId = 0x3007;
     // Context menu IDs
     constexpr int kContextMenuTerminateProcess = 0x4001;
     constexpr int kContextMenuTerminateTree = 0x4002;
@@ -1090,6 +1091,20 @@ class ModuleViewerWindow
                 instance_,
                 nullptr);
 
+            clearFilterButton_ = CreateWindowExW(
+                0,
+                L"BUTTON",
+                L"Clear",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                reinterpret_cast<HMENU>(kClearFilterButtonId),
+                instance_,
+                nullptr);
+
             listView_ = CreateWindowExW(
                 WS_EX_CLIENTEDGE,
                 WC_LISTVIEWW,
@@ -1189,6 +1204,10 @@ class ModuleViewerWindow
             else if (controlId == kFilterEditId && code == EN_CHANGE)
             {
                 OnFilterChanged();
+            }
+            else if (controlId == kClearFilterButtonId && code == BN_CLICKED)
+            {
+                ClearFilter();
             }
             else if (controlId == kModulesButtonId && code == BN_CLICKED)
             {
@@ -1419,8 +1438,14 @@ class ModuleViewerWindow
             if (filterEdit_)
             {
                 int editLeft = padding + buttonWidth + modulesButtonWidth + connectionsButtonWidth + (buttonSpacing * 3);
-                int editWidth = std::max(120, width - editLeft - padding);
+                int editWidth = std::max(100, width - editLeft - 75 - (buttonSpacing * 2) - padding);
                 MoveWindow(filterEdit_, editLeft, padding, editWidth, buttonHeight, TRUE);
+            }
+
+            if (clearFilterButton_)
+            {
+                int clearLeft = filterEdit_ ? padding + buttonWidth + modulesButtonWidth + connectionsButtonWidth + (buttonSpacing * 3) + std::max(100, width - (padding + buttonWidth + modulesButtonWidth + connectionsButtonWidth + (buttonSpacing * 3)) - 75 - (buttonSpacing * 2) - padding) + buttonSpacing : 0;
+                MoveWindow(clearFilterButton_, clearLeft, padding, 60, buttonHeight, TRUE);
             }
 
             int detailsTop = height - detailsHeight;
@@ -1473,6 +1498,17 @@ class ModuleViewerWindow
             BuildVisibleProcesses();
             SortVisibleProcesses();
             PopulateList();
+        }
+
+        void ClearFilter()
+        {
+            if (filterEdit_)
+            {
+                SetWindowTextW(filterEdit_, L"");
+                filterText_.clear();
+                ApplyFilterAndSort();
+                UpdateDetailsPanel();
+            }
         }
 
         void BuildVisibleProcesses()
@@ -1960,6 +1996,7 @@ class ModuleViewerWindow
         HWND modulesButton_ = nullptr;
         HWND connectionsButton_ = nullptr;
         HWND filterEdit_ = nullptr;
+        HWND clearFilterButton_ = nullptr;
         HWND detailsStatic_ = nullptr;
         bool columnsCreated_ = false;
         rvrse::core::ProcessSnapshot snapshot_;
