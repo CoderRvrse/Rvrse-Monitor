@@ -1,7 +1,7 @@
 # Team Update: Tier 4 Feature Development Status
 
-**Date:** November 15, 2025
-**Status:** 2/4 Tier 4 Features Complete + CI/Test Infrastructure Hardened
+**Date:** November 15, 2025 → Updated November 15, 2025
+**Status:** 🎉 **ALL 4/4 TIER 4 FEATURES COMPLETE!**
 
 ---
 
@@ -31,6 +31,30 @@
   - Proper BN_CLICKED handler integration
   - Updated documentation
 
+### ✅ Feature 3: Suspend/Resume Process (Complete)
+- **Status:** Fully implemented and merged to main
+- **Commits:** `d9cd7c5`
+- **What was implemented:**
+  - Right-click context menu options for "Suspend Process" and "Resume Process"
+  - Thread-based suspension using `SuspendThread()` API for complete process freezing
+  - Resume functionality using `ResumeThread()` API to unfreeze suspended processes
+  - Iterates through all threads in target process for complete suspension/resumption
+  - Success/failure feedback showing number of threads affected
+  - Error handling for access denied scenarios
+  - Automatic process list refresh after operations
+
+### ✅ Feature 4: Process Priority Control (Complete)
+- **Status:** Fully implemented and merged to main
+- **Commits:** `d9cd7c5`
+- **What was implemented:**
+  - Right-click context menu submenu "Set Priority" with 6 priority levels
+  - Supported priority levels: Realtime, High, Above Normal, Normal, Below Normal, Low
+  - Uses `SetPriorityClass()` API with PROCESS_SET_INFORMATION access rights
+  - Confirmation dialogs before applying priority changes
+  - Privilege handling: Realtime priority requires administrator privileges with clear error messages
+  - Readable priority names in all dialogs and success messages
+  - Automatic process list refresh after successful priority changes
+
 ---
 
 ## Tier 4 Development Complete Features Summary
@@ -39,8 +63,8 @@
 |---------|----------|--------|-----------------|
 | Kill/Terminate Process | 1 | ✅ Complete | Process tree enumeration working, protected process handling implemented |
 | Process Search/Filter | 2 | ✅ Complete | Clear button added and functional |
-| Suspend/Resume Process | 3 | 🔄 Ready for Dev | No blocking dependencies. Team can start immediately. |
-| Process Priority (Nice) | 4 | 🔄 Ready for Dev | No blocking dependencies. Team can start after Feature 3. |
+| Suspend/Resume Process | 3 | ✅ Complete | Thread-based suspension fully working, merged to main |
+| Process Priority Control | 4 | ✅ Complete | All 6 priority levels implemented, merged to main |
 
 ---
 
@@ -90,29 +114,25 @@ All test failures in non-elevated CI environments (GitHub Actions) have been add
 
 ---
 
-## Next Steps for Development Team
+## ✅ TIER 4 COMPLETE - What's Next?
 
-### For Feature 3: Suspend/Resume Process
-1. Follow same pattern as Feature 1 (Kill/Terminate)
-2. Add `SuspendProcess()` and `ResumeProcess()` API calls to `process_snapshot.cpp`
-3. Add menu items to right-click context menu in `src/app/main.cpp`
-4. Implement user confirmation dialog (important safety feature!)
-5. Add unit tests in `tests/main.cpp`
-6. Test on both Debug and Release configurations locally
+All 4 Tier 4 Quick Win features are now complete and merged to main:
+- Feature 1: Kill/Terminate ✅
+- Feature 2: Search/Filter ✅
+- Feature 3: Suspend/Resume ✅
+- Feature 4: Process Priority ✅
 
-### For Feature 4: Process Priority
-1. Similar approach to Features 1-3
-2. Use `SetPriorityClass()` Windows API
-3. Add priority level dropdown/dialog in main window
-4. Implement bidirectional updates (UI ↔ Process state)
-5. Add comprehensive unit tests
+### Next Phase: Tier 5 Development
 
-### Development Best Practices
-- **Always test locally first** (Debug + Release builds)
-- **Verify on both elevated and non-elevated** command prompts
-- **Add unit tests** to `tests/main.cpp` with CI-aware checks
-- **Update CHANGELOG.md** and `README.md` with feature documentation
-- **Follow existing code style**: Rvrse Monitor's C++ patterns already established
+The team is now ready to proceed with **Tier 5 Features**. Refer to the roadmap in `README.md` for upcoming features.
+
+### Recommended Team Workflow Going Forward
+1. **Always test locally first** (Debug + Release builds)
+2. **Verify on both elevated and non-elevated** command prompts
+3. **Add unit tests** to `tests/main.cpp` with CI-aware checks
+4. **Update CHANGELOG.md** and `README.md` with feature documentation
+5. **Follow existing code style**: Rvrse Monitor's C++ patterns already established
+6. **Create feature branches** from main and submit via your team's approval process
 
 ---
 
