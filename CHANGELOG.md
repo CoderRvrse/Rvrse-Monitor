@@ -19,6 +19,16 @@ All notable changes to this project will be documented in this file. The format 
   - Performance telemetry with <10ms average capture time for both IPv4 and IPv6
   - Comprehensive unit tests for IPv4/IPv6 enumeration, filtering, and validation
   - Graceful elevation detection and user feedback for access denied scenarios
+- **Kill/Terminate Process** with context menu integration:
+  - Right-click context menu on process list with Terminate options
+  - Single process termination using `TerminateProcess()` API with PROCESS_TERMINATE access
+  - Process tree termination that recursively kills all child processes
+  - Parent PID tracking in `ProcessEntry` structure via `InheritedFromUniqueProcessId`
+  - Confirmation dialogs before termination with process name and PID details
+  - Error handling for protected processes (System, csrss.exe, etc.) with access denied feedback
+  - Success/failure feedback messages with detailed error information
+  - Automatic process list refresh after termination
+  - Unit tests for process tree enumeration and parent-child relationship validation
 - Driver scaffold (shared IOCTL contract, user-mode interface, kernel skeleton) so privileged telemetry can plug in incrementally.
 - Claude Code SessionStart hook for automatic development environment setup
 - Comprehensive Claude Code development guide with todo list best practices

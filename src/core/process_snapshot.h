@@ -29,6 +29,7 @@ namespace rvrse::core
     {
         std::wstring imageName;
         std::uint32_t processId = 0;
+        std::uint32_t parentProcessId = 0;
         std::uint32_t threadCount = 0;
         std::uint64_t workingSetBytes = 0;
         std::uint64_t privateBytes = 0;

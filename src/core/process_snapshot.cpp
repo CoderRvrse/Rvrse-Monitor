@@ -231,6 +231,7 @@ namespace rvrse::core
         {
             ProcessEntry entry{};
             entry.processId = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(current->UniqueProcessId));
+            entry.parentProcessId = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(current->InheritedFromUniqueProcessId));
             entry.threadCount = current->NumberOfThreads;
             entry.imageName = CaptureImageName(current->ImageName);
             entry.workingSetBytes = static_cast<std::uint64_t>(current->WorkingSetSize);

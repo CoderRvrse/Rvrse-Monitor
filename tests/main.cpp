@@ -527,6 +527,102 @@ namespace
         }
     }
 
+    void TestProcessTreeEnumeration()
+    {
+        auto snapshot = rvrse::core::ProcessSnapshot::Capture();
+        if (snapshot.Processes().empty())
+        {
+            ReportFailure(L"Process snapshot returned zero processes for tree enumeration test.");
+            return;
+        }
+
+        // Build a set of all valid PIDs for parent validation
+        std::unordered_set<std::uint32_t> validPids;
+        for (const auto &process : snapshot.Processes())
+        {
+            validPids.insert(process.processId);
+        }
+
+        // System Idle Process (PID 0) should have parent 0
+        const auto *idleProcess = std::find_if(
+            snapshot.Processes().begin(),
+            snapshot.Processes().end(),
+            [](const rvrse::core::ProcessEntry &p) { return p.processId == 0; });
+
+        if (idleProcess != snapshot.Processes().end())
+        {
+            if (idleProcess->parentProcessId != 0)
+            {
+                wchar_t buffer[256];
+                std::swprintf(buffer,
+                              std::size(buffer),
+                              L"System Idle Process has parent PID %u (expected 0).",
+                              idleProcess->parentProcessId);
+                ReportFailure(buffer);
+            }
+        }
+
+        // Verify current process has valid parent relationship
+        DWORD currentPid = GetCurrentProcessId();
+        const auto *currentProcess = std::find_if(
+            snapshot.Processes().begin(),
+            snapshot.Processes().end(),
+            [currentPid](const rvrse::core::ProcessEntry &p) { return p.processId == currentPid; });
+
+        if (currentProcess != snapshot.Processes().end())
+        {
+            if (currentProcess->parentProcessId != 0 &&
+                validPids.find(currentProcess->parentProcessId) == validPids.end())
+            {
+                wchar_t buffer[256];
+                std::swprintf(buffer,
+                              std::size(buffer),
+                              L"Current process (PID %u) has orphaned parent PID %u.",
+                              currentPid,
+                              currentProcess->parentProcessId);
+                // This is a warning, not a failure, as the parent may have exited
+                std::fwprintf(stdout, L"[WARN] %s\n", buffer);
+            }
+        }
+        else
+        {
+            ReportFailure(L"Current process was not found in snapshot for tree enumeration test.");
+            return;
+        }
+
+        // Verify parent-child relationships and detect direct children
+        std::size_t processesWithChildren = 0;
+        std::size_t totalChildRelationships = 0;
+
+        for (const auto &parent : snapshot.Processes())
+        {
+            std::vector<std::uint32_t> children;
+            for (const auto &candidate : snapshot.Processes())
+            {
+                if (candidate.parentProcessId == parent.processId && candidate.processId != 0)
+                {
+                    children.push_back(candidate.processId);
+                }
+            }
+
+            if (!children.empty())
+            {
+                ++processesWithChildren;
+                totalChildRelationships += children.size();
+            }
+        }
+
+        if (totalChildRelationships == 0)
+        {
+            ReportFailure(L"No parent-child process relationships detected in snapshot.");
+        }
+
+        std::fwprintf(stdout,
+                      L"[INFO] Process tree: %zu processes with children, %zu total child relationships.\n",
+                      processesWithChildren,
+                      totalChildRelationships);
+    }
+
     void TestHandleSnapshot()
     {
         auto handles = rvrse::core::HandleSnapshot::Capture();
@@ -762,6 +858,7 @@ int wmain(int argc, wchar_t **argv)
     TestTimeFormatting();
     TestProcessSnapshot();
     TestProcessSnapshotEdgeCases();
+    TestProcessTreeEnumeration();
     TestHandleSnapshot();
     TestHandleSnapshotAccessDenied();
     BenchmarkProcessSnapshot();

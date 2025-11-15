@@ -40,6 +40,8 @@ namespace
     constexpr int kDetailsStaticId = 0x3004;
     constexpr int kModulesButtonId = 0x3005;
     constexpr int kConnectionsButtonId = 0x3006;
+    constexpr int kMenuTerminateId = 0x4001;
+    constexpr int kMenuTerminateTreeId = 0x4002;
 
     class ResourceGraphView
     {
@@ -1207,6 +1209,14 @@ class ModuleViewerWindow
             {
                 ShowConnectionsForSelection();
             }
+            else if (controlId == kMenuTerminateId)
+            {
+                TerminateSelectedProcess(false);
+            }
+            else if (controlId == kMenuTerminateTreeId)
+            {
+                TerminateSelectedProcess(true);
+            }
         }
 
         bool OnNotify(LPARAM lParam)
@@ -1242,6 +1252,11 @@ class ModuleViewerWindow
             case NM_DBLCLK:
             {
                 ShowModulesForSelection();
+                return true;
+            }
+            case NM_RCLICK:
+            {
+                ShowContextMenu();
                 return true;
             }
             default:
@@ -1670,6 +1685,162 @@ class ModuleViewerWindow
             }
 
             ConnectionViewerWindow::Show(hwnd_, instance_, visibleProcesses_[selectedIndex], networkSnapshot_);
+        }
+
+        void ShowContextMenu()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            int selectedIndex = ListView_GetNextItem(listView_, -1, LVNI_SELECTED);
+            if (selectedIndex < 0)
+            {
+                return; // No selection, no context menu
+            }
+
+            POINT cursorPos{};
+            GetCursorPos(&cursorPos);
+
+            HMENU menu = CreatePopupMenu();
+            if (!menu)
+            {
+                return;
+            }
+
+            AppendMenuW(menu, MF_STRING, kMenuTerminateId, L"&Terminate Process");
+            AppendMenuW(menu, MF_STRING, kMenuTerminateTreeId, L"Terminate Process &Tree");
+
+            TrackPopupMenu(menu, TPM_RIGHTBUTTON, cursorPos.x, cursorPos.y, 0, hwnd_, nullptr);
+            DestroyMenu(menu);
+        }
+
+        void TerminateSelectedProcess(bool includeTree)
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            int selectedIndex = ListView_GetNextItem(listView_, -1, LVNI_SELECTED);
+            if (selectedIndex < 0 || selectedIndex >= static_cast<int>(visibleProcesses_.size()))
+            {
+                return;
+            }
+
+            const auto &process = visibleProcesses_[selectedIndex];
+
+            // Confirmation dialog
+            wchar_t message[512];
+            if (includeTree)
+            {
+                StringCchPrintfW(message, std::size(message),
+                                 L"Terminate process '%s' (PID %u) and all its child processes?\n\n"
+                                 L"This action cannot be undone.",
+                                 process.imageName.empty() ? L"[Unnamed]" : process.imageName.c_str(),
+                                 process.processId);
+            }
+            else
+            {
+                StringCchPrintfW(message, std::size(message),
+                                 L"Terminate process '%s' (PID %u)?\n\n"
+                                 L"This action cannot be undone.",
+                                 process.imageName.empty() ? L"[Unnamed]" : process.imageName.c_str(),
+                                 process.processId);
+            }
+
+            int result = MessageBoxW(hwnd_, message, rvrse::kProductName, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+            if (result != IDYES)
+            {
+                return;
+            }
+
+            // Collect PIDs to terminate
+            std::vector<std::uint32_t> pidsToTerminate;
+            pidsToTerminate.push_back(process.processId);
+
+            if (includeTree)
+            {
+                CollectChildProcesses(process.processId, pidsToTerminate);
+            }
+
+            // Terminate processes
+            int successCount = 0;
+            int failureCount = 0;
+            std::wstring errorDetails;
+
+            for (auto pid : pidsToTerminate)
+            {
+                HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+                if (hProcess)
+                {
+                    if (TerminateProcess(hProcess, 1))
+                    {
+                        ++successCount;
+                    }
+                    else
+                    {
+                        ++failureCount;
+                        DWORD error = GetLastError();
+                        wchar_t errBuf[128];
+                        StringCchPrintfW(errBuf, std::size(errBuf), L"PID %u (Error %u)\n", pid, error);
+                        errorDetails += errBuf;
+                    }
+                    CloseHandle(hProcess);
+                }
+                else
+                {
+                    ++failureCount;
+                    DWORD error = GetLastError();
+                    wchar_t errBuf[128];
+                    if (error == ERROR_ACCESS_DENIED)
+                    {
+                        StringCchPrintfW(errBuf, std::size(errBuf), L"PID %u (Access Denied - Protected Process)\n", pid);
+                    }
+                    else
+                    {
+                        StringCchPrintfW(errBuf, std::size(errBuf), L"PID %u (Error %u)\n", pid, error);
+                    }
+                    errorDetails += errBuf;
+                }
+            }
+
+            // Show result
+            wchar_t resultMsg[1024];
+            if (failureCount == 0)
+            {
+                StringCchPrintfW(resultMsg, std::size(resultMsg),
+                                 L"Successfully terminated %d process(es).",
+                                 successCount);
+                MessageBoxW(hwnd_, resultMsg, rvrse::kProductName, MB_OK | MB_ICONINFORMATION);
+            }
+            else
+            {
+                StringCchPrintfW(resultMsg, std::size(resultMsg),
+                                 L"Terminated %d process(es).\n"
+                                 L"Failed to terminate %d process(es):\n\n%s",
+                                 successCount, failureCount, errorDetails.c_str());
+                MessageBoxW(hwnd_, resultMsg, rvrse::kProductName, MB_OK | MB_ICONWARNING);
+            }
+
+            // Refresh the process list
+            RefreshProcesses();
+        }
+
+        void CollectChildProcesses(std::uint32_t parentPid, std::vector<std::uint32_t> &pids)
+        {
+            // Recursively collect all child processes
+            for (const auto &proc : snapshot_.Processes())
+            {
+                if (proc.parentProcessId == parentPid)
+                {
+                    // Add this child
+                    pids.push_back(proc.processId);
+                    // Recursively collect its children
+                    CollectChildProcesses(proc.processId, pids);
+                }
+            }
         }
 
         std::wstring FormatProcessDetails(const rvrse::core::ProcessEntry &process) const
