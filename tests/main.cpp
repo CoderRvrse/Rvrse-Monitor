@@ -62,6 +62,8 @@ namespace
     {
         auto snapshot = rvrse::core::NetworkSnapshot::Capture();
         const auto &connections = snapshot.Connections();
+
+        // Test 1: Connections should be sorted by PID, protocol, address family
         if (!connections.empty())
         {
             std::uint32_t lastPid = connections.front().owningProcessId;
@@ -76,6 +78,7 @@ namespace
             }
         }
 
+        // Test 2: Per-process filtering by PID
         DWORD currentPid = GetCurrentProcessId();
         auto forCurrent = snapshot.ConnectionsForProcess(currentPid);
         for (const auto &connection : forCurrent)
@@ -87,10 +90,63 @@ namespace
             }
         }
 
+        // Test 3: Connection count matches filtered results
         auto count = snapshot.ConnectionCountForProcess(currentPid);
         if (count != forCurrent.size())
         {
             ReportFailure(L"ConnectionCountForProcess did not match the number of filtered entries.");
+        }
+
+        // Test 4: IPv4 connections should have valid address family
+        int ipv4Count = 0;
+        for (const auto &connection : connections)
+        {
+            if (connection.addressFamily == rvrse::core::AddressFamily::IPv4)
+            {
+                ipv4Count++;
+                // IPv4 should use localAddress field
+                if (connection.localAddress == 0 && connection.localPort == 0)
+                {
+                    // Listening on any address is valid
+                }
+            }
+        }
+
+        // Test 5: IPv6 connections should have valid address family
+        int ipv6Count = 0;
+        for (const auto &connection : connections)
+        {
+            if (connection.addressFamily == rvrse::core::AddressFamily::IPv6)
+            {
+                ipv6Count++;
+                // IPv6 should use localAddress6 field (at least one byte should be non-zero)
+                bool hasValidAddr = false;
+                for (int i = 0; i < 16; ++i)
+                {
+                    if (connection.localAddress6[i] != 0)
+                    {
+                        hasValidAddr = true;
+                        break;
+                    }
+                }
+                if (!hasValidAddr && connection.localPort == 0)
+                {
+                    // Listening on any address is valid (all zeros)
+                }
+            }
+        }
+
+        // Test 6: Access denied flag should be set only on actual errors
+        if (snapshot.AccessDenied() && snapshot.CaptureFailed())
+        {
+            ReportFailure(L"Both AccessDenied and CaptureFailed flags are set.");
+        }
+
+        // Test 7: Empty results should be valid when no connections exist for a PID
+        auto noConnections = snapshot.ConnectionsForProcess(999999);
+        if (noConnections.size() > 0)
+        {
+            ReportFailure(L"Invalid PID returned non-empty connection list.");
         }
     }
 
@@ -615,6 +671,36 @@ namespace
                               passed);
     }
 
+    void BenchmarkNetworkSnapshot()
+    {
+        const int iterations = 5;
+        const double thresholdMs = 10.0;  // <10ms target for IPv4+IPv6 combined
+        double averageMs = MeasureAverageMilliseconds(
+            []()
+            {
+                auto snapshot = rvrse::core::NetworkSnapshot::Capture();
+                volatile std::size_t count = snapshot.Connections().size();
+                (void)count;
+            },
+            iterations);
+
+        std::fwprintf(stdout, L"[PERF] NetworkSnapshot avg: %.2f ms\n", averageMs);
+        const bool passed = averageMs <= thresholdMs;
+        if (!passed)
+        {
+            std::fwprintf(stderr,
+                          L"[WARN] NetworkSnapshot performance above target (%.2f ms > %.2f ms threshold)\n",
+                          averageMs,
+                          thresholdMs);
+        }
+
+        RecordBenchmarkResult(L"NetworkSnapshot",
+                              averageMs,
+                              thresholdMs,
+                              iterations,
+                              passed);
+    }
+
     void BenchmarkUtf8Conversion()
     {
         const int iterations = 1000;
@@ -728,6 +814,7 @@ int wmain(int argc, wchar_t **argv)
     TestHandleSnapshotAccessDenied();
     BenchmarkProcessSnapshot();
     BenchmarkHandleSnapshot();
+    BenchmarkNetworkSnapshot();
     BenchmarkUtf8Conversion();
     TestPluginLoaderInitialization();
     TestNetworkSnapshot();

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <cwchar>
 #include <cwctype>
 #include <deque>
@@ -762,11 +763,15 @@ class ModuleViewerWindow
                 item.pszText = protocolText.data();
                 ListView_InsertItem(listView_, &item);
 
-                auto localEndpoint = FormatEndpoint(connection.localAddress, connection.localPort);
+                auto localEndpoint = connection.addressFamily == rvrse::core::AddressFamily::IPv6
+                                          ? FormatEndpoint6(connection.localAddress6, connection.localPort)
+                                          : FormatEndpoint(connection.localAddress, connection.localPort);
                 ListView_SetItemText(listView_, index, 1, localEndpoint.data());
 
                 auto remoteEndpoint = connection.protocol == rvrse::core::TransportProtocol::Tcp
-                                           ? FormatEndpoint(connection.remoteAddress, connection.remotePort)
+                                           ? (connection.addressFamily == rvrse::core::AddressFamily::IPv6
+                                                  ? FormatEndpoint6(connection.remoteAddress6, connection.remotePort)
+                                                  : FormatEndpoint(connection.remoteAddress, connection.remotePort))
                                            : std::wstring(L"-");
                 ListView_SetItemText(listView_, index, 2, remoteEndpoint.data());
 
@@ -822,6 +827,50 @@ class ModuleViewerWindow
 
             wchar_t endpoint[64];
             StringCchPrintfW(endpoint, std::size(endpoint), L"%s:%u", buffer, port);
+            return endpoint;
+        }
+
+        static std::wstring FormatEndpoint6(const std::uint8_t *address, std::uint16_t port)
+        {
+            if (!address)
+            {
+                return std::wstring(L"-");
+            }
+
+            // Check if address is all zeros
+            bool allZero = true;
+            for (int i = 0; i < 16; ++i)
+            {
+                if (address[i] != 0)
+                {
+                    allZero = false;
+                    break;
+                }
+            }
+
+            if (allZero)
+            {
+                return std::wstring(L"-");
+            }
+
+            IN6_ADDR addr6{};
+            std::memcpy(&addr6, address, 16);
+            wchar_t buffer[INET6_ADDRSTRLEN] = L"";
+            if (!InetNtopW(AF_INET6, &addr6, buffer, static_cast<DWORD>(std::size(buffer))))
+            {
+                StringCchCopyW(buffer, std::size(buffer), L"::");
+            }
+
+            if (port == 0)
+            {
+                // Format IPv6 with brackets
+                wchar_t result[128];
+                StringCchPrintfW(result, std::size(result), L"[%s]", buffer);
+                return std::wstring(result);
+            }
+
+            wchar_t endpoint[128];
+            StringCchPrintfW(endpoint, std::size(endpoint), L"[%s]:%u", buffer, port);
             return endpoint;
         }
 

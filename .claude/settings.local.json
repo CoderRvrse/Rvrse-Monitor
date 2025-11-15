@@ -33,7 +33,22 @@
       "Bash(pwsh:*)",
       "Bash(cat:*)",
       "Bash(unzip:*)",
-      "Bash(cmd.exe:*)"
+      "Bash(cmd.exe:*)",
+      "Bash(test:*)",
+      "Bash(chmod:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git pull:*)",
+      "Bash(__NEW_LINE__ test -f \".claude/settings.json\")",
+      "Bash(git remote get-url:*)",
+      "Bash(if [ $? -eq 0 ])",
+      "Bash(then)",
+      "Bash(else)",
+      "Bash(fi)",
+      "Bash(cmd /c \"scripts\\build_release_local.cmd Debug\")",
+      "Bash(\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" \"d:\\Rvrse Monitor\\RvrseMonitor.sln\" -p:Configuration=Debug -p:Platform=x64 -v:minimal)",
+      "Bash(\"d:\\Rvrse Monitor\\build\\Debug\\RvrseMonitorTests.exe\")",
+      "Bash(\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe\" \"d:\\Rvrse Monitor\\RvrseMonitor.sln\" -p:Configuration=Release -p:Platform=x64 -m)",
+      "Bash(\"d:\\Rvrse Monitor\\build\\Release\\RvrseMonitorTests.exe\")"
     ],
     "deny": [],
     "ask": []

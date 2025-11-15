@@ -28,7 +28,7 @@ See `docs/build/local-project.md` for full details once populated.
 
 - Live process grid with sorting, filtering, and handle/thread summaries.
 - Module viewer window (double-click a process or click **Modules...**) that lists every loaded DLL with base address, image size, and full path.
-- Network connections explorer (click **Connections...**) that shows TCP/UDP endpoints per process with live state and endpoint details (requires elevation to inspect system-wide sockets).
+- Network connections explorer (click **Connections...**) with full **IPv4 and IPv6 dual-stack support** that shows TCP/UDP endpoints per process, live connection states, and formatted endpoint details [addr]:port (requires elevation to inspect system-wide sockets).
 - Real-time CPU and memory graphs rendered with GDI, updating alongside the 4 s snapshot cadence so you can spot spikes instantly.
 - Optional kernel driver scaffold with user-mode health checks (ping/version IOCTLs) so privileged telemetry can plug in later.
 - Plugin system with a working Sample Logger that consumes process and handle broadcasts.

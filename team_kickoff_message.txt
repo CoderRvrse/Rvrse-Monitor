@@ -1,0 +1,182 @@
+╔══════════════════════════════════════════════════════════════╗
+║         RVRSE MONITOR - REMOTE TEAM KICKOFF MESSAGE          ║
+╚══════════════════════════════════════════════════════════════╝
+
+Hi Team! 👋
+
+Welcome to the Rvrse Monitor project! You're joining an effort to build 
+a high-performance Windows system monitor that will compete with 
+Process Hacker 2.
+
+══════════════════════════════════════════════════════════════
+🚀 YOUR MISSION
+══════════════════════════════════════════════════════════════
+
+Build the remaining 50% of features over the next 3 months to 
+create a competitive Process Hacker alternative.
+
+Current Status: 40% feature parity
+Your Goal: 90% feature parity in 3 months
+
+══════════════════════════════════════════════════════════════
+⚡ QUICK START (30 Minutes)
+══════════════════════════════════════════════════════════════
+
+1. Clone the repository:
+   git clone https://github.com/CoderRvrse/Rvrse-Monitor.git
+   cd Rvrse-Monitor
+
+2. Open in Claude Code:
+   claude-code .
+   (SessionStart hook auto-configures your environment!)
+
+3. Read this file FIRST:
+   docs/START_HERE.md 🎯
+
+   This guide gets you productive in 30 minutes with:
+   - Complete setup instructions
+   - Your first task (Network Connections)
+   - Exact prompts to give Claude Code
+   - Best practices and workflows
+
+══════════════════════════════════════════════════════════════
+🎯 YOUR FIRST TASK: Network Connections View
+══════════════════════════════════════════════════════════════
+
+Once you've read START_HERE.md, copy this prompt to Claude Code:
+
+"I need to implement the Network Connections View feature.
+
+Requirements:
+- Design NetworkConnectionEntry and NetworkSnapshot classes
+- Implement TCP enumeration using GetExtendedTcpTable (IPv4 + IPv6)
+- Implement UDP enumeration using GetExtendedUdpTable (IPv4 + IPv6)
+- Add 'Network...' button to main UI
+- Display connections in sortable list (Protocol, Local/Remote Address, State, PID)
+- Add per-process filtering
+- Write unit tests for enumeration and filtering
+- Update telemetry to track NetworkSnapshot performance (<10ms target)
+
+Use the todo list to track all these tasks."
+
+Claude will create a 7-task checklist and implement everything!
+
+══════════════════════════════════════════════════════════════
+📚 CRITICAL DOCUMENTS (Read in order)
+══════════════════════════════════════════════════════════════
+
+1. docs/START_HERE.md 🎯 (30 min read)
+   → Your complete getting started guide
+
+2. docs/CLAUDE_CODE_GUIDE.md ⭐ (10 min read)
+   → How to use the todo list system (prevents forgetting tasks!)
+
+3. docs/TEAM_ONBOARDING.md (5 min read)
+   → Development workflow and standards
+
+4. docs/FEATURE_ROADMAP.md (reference)
+   → Full 3-month plan with 15 features
+
+══════════════════════════════════════════════════════════════
+🏆 WHY THIS PROJECT IS EXCITING
+══════════════════════════════════════════════════════════════
+
+✅ We're FASTER than Process Hacker (2-3x faster snapshots!)
+✅ Modern C++ codebase (vs dated PH code)
+✅ No GPL licensing issues (clean BSD/MIT)
+✅ Enterprise infrastructure (CI/CD, automated testing, telemetry)
+✅ Clear roadmap to beat the competition
+
+This is a chance to build something users will actually prefer 
+over the established tools!
+
+══════════════════════════════════════════════════════════════
+📅 DEVELOPMENT TIMELINE
+══════════════════════════════════════════════════════════════
+
+Month 1: Core Features (40% → 75% parity)
+  - Week 1: Network Connections ← YOU START HERE
+  - Week 2: Kill/Terminate Process + Search/Filter
+  - Week 3: Process Tree View
+  - Week 4: System Info Panel
+
+Month 2: Power Features (75% → 85% parity)
+  - Process Properties Dialog
+  - Disk/Network I/O monitoring
+  - Services Tab
+
+Month 3: Advanced Features (85% → 90% parity)
+  - Memory Viewer
+  - Thread Stack Traces
+  - Polish & public release!
+
+══════════════════════════════════════════════════════════════
+⚙️ AUTO-SETUP ALREADY CONFIGURED
+══════════════════════════════════════════════════════════════
+
+The repository has a SessionStart hook that automatically runs 
+when you open it in Claude Code. You'll see:
+
+[Claude Setup] Installing Node packages...
+[Claude Setup] Installing Python dependencies...
+[Claude Setup] Ready.
+
+Zero manual configuration required! ✅
+
+══════════════════════════════════════════════════════════════
+✅ BEFORE EVERY PUSH (Mandatory!)
+══════════════════════════════════════════════════════════════
+
+Run this validation script:
+
+  .\scripts\validate_before_push.ps1
+
+This checks builds, tests, performance, and security.
+Only push if validation passes!
+
+══════════════════════════════════════════════════════════════
+🤝 TEAM COMMUNICATION
+══════════════════════════════════════════════════════════════
+
+- Daily: Push working code to main
+- Blocked? Create GitHub issue
+- Questions? Ask in team chat or create issue
+- Major features: Create PR for code review (optional)
+
+GitHub: https://github.com/CoderRvrse/Rvrse-Monitor
+
+══════════════════════════════════════════════════════════════
+🎯 SUCCESS METRICS
+══════════════════════════════════════════════════════════════
+
+Your targets:
+✅ All builds pass (Debug + Release)
+✅ All unit tests pass (100% success)
+✅ Performance: <10ms regression
+✅ No crashes in manual testing
+✅ Features match Process Hacker functionality
+
+══════════════════════════════════════════════════════════════
+📞 NEED HELP?
+══════════════════════════════════════════════════════════════
+
+- Documentation: docs/ folder
+- GitHub Issues: https://github.com/CoderRvrse/Rvrse-Monitor/issues
+- Architecture: docs/design/system-monitor-architecture.md
+
+══════════════════════════════════════════════════════════════
+🚀 READY TO START?
+══════════════════════════════════════════════════════════════
+
+1. Clone: git clone https://github.com/CoderRvrse/Rvrse-Monitor.git
+2. Open: claude-code .
+3. Read: docs/START_HERE.md
+4. Code: Copy the Network Connections prompt to Claude Code
+5. Push: After validation passes!
+
+You have everything you need to be productive immediately.
+Let's build something amazing! 🎉
+
+Welcome to the team!
+- Project Lead
+

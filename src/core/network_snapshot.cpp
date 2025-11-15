@@ -1,6 +1,7 @@
 #include "network_snapshot.h"
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include <winsock2.h>
@@ -81,6 +82,38 @@ namespace
         }
     };
 
+    struct Tcp6Table
+    {
+        using NativeType = MIB_TCP6TABLE_OWNER_PID;
+        using RowType = MIB_TCP6ROW_OWNER_PID;
+
+        static DWORD Query(NativeType *table, PULONG size, BOOL sorted, ULONG)
+        {
+            return GetExtendedTcpTable(table,
+                                       size,
+                                       sorted,
+                                       AF_INET6,
+                                       TCP_TABLE_OWNER_PID_ALL,
+                                       0);
+        }
+    };
+
+    struct Udp6Table
+    {
+        using NativeType = MIB_UDP6TABLE_OWNER_PID;
+        using RowType = MIB_UDP6ROW_OWNER_PID;
+
+        static DWORD Query(NativeType *table, PULONG size, BOOL sorted, ULONG)
+        {
+            return GetExtendedUdpTable(table,
+                                       size,
+                                       sorted,
+                                       AF_INET6,
+                                       UDP_TABLE_OWNER_PID,
+                                       0);
+        }
+    };
+
     std::uint16_t ConvertPort(DWORD value)
     {
         return static_cast<std::uint16_t>(ntohs(static_cast<std::uint16_t>(value)));
@@ -93,26 +126,38 @@ namespace rvrse::core
     {
         NetworkSnapshot snapshot;
 
+        // IPv4
         DWORD tcpStatus = NO_ERROR;
         auto tcpRows = QueryTable<Tcp4Table>(AF_INET, tcpStatus);
         DWORD udpStatus = NO_ERROR;
         auto udpRows = QueryTable<Udp4Table>(AF_INET, udpStatus);
 
-        snapshot.accessDenied_ = (tcpStatus == ERROR_ACCESS_DENIED) || (udpStatus == ERROR_ACCESS_DENIED);
+        // IPv6
+        DWORD tcp6Status = NO_ERROR;
+        auto tcp6Rows = QueryTable<Tcp6Table>(AF_INET6, tcp6Status);
+        DWORD udp6Status = NO_ERROR;
+        auto udp6Rows = QueryTable<Udp6Table>(AF_INET6, udp6Status);
+
+        snapshot.accessDenied_ = (tcpStatus == ERROR_ACCESS_DENIED) || (udpStatus == ERROR_ACCESS_DENIED) ||
+                                 (tcp6Status == ERROR_ACCESS_DENIED) || (udp6Status == ERROR_ACCESS_DENIED);
+
         snapshot.captureFailed_ = (!snapshot.accessDenied_) &&
-                                  ((tcpStatus != NO_ERROR) || (udpStatus != NO_ERROR));
+                                  ((tcpStatus != NO_ERROR) || (udpStatus != NO_ERROR) ||
+                                   (tcp6Status != NO_ERROR) || (udp6Status != NO_ERROR));
 
         if (snapshot.accessDenied_ || snapshot.captureFailed_)
         {
             return snapshot;
         }
 
-        snapshot.connections_.reserve(tcpRows.size() + udpRows.size());
+        snapshot.connections_.reserve(tcpRows.size() + udpRows.size() + tcp6Rows.size() + udp6Rows.size());
 
+        // IPv4 TCP
         for (const auto &row : tcpRows)
         {
             ConnectionEntry entry{};
             entry.protocol = TransportProtocol::Tcp;
+            entry.addressFamily = AddressFamily::IPv4;
             entry.localAddress = row.dwLocalAddr;
             entry.localPort = ConvertPort(row.dwLocalPort);
             entry.remoteAddress = row.dwRemoteAddr;
@@ -122,11 +167,40 @@ namespace rvrse::core
             snapshot.connections_.push_back(entry);
         }
 
+        // IPv4 UDP
         for (const auto &row : udpRows)
         {
             ConnectionEntry entry{};
             entry.protocol = TransportProtocol::Udp;
+            entry.addressFamily = AddressFamily::IPv4;
             entry.localAddress = row.dwLocalAddr;
+            entry.localPort = ConvertPort(row.dwLocalPort);
+            entry.owningProcessId = row.dwOwningPid;
+            snapshot.connections_.push_back(entry);
+        }
+
+        // IPv6 TCP
+        for (const auto &row : tcp6Rows)
+        {
+            ConnectionEntry entry{};
+            entry.protocol = TransportProtocol::Tcp;
+            entry.addressFamily = AddressFamily::IPv6;
+            std::memcpy(entry.localAddress6, &row.ucLocalAddr[0], 16);
+            entry.localPort = ConvertPort(row.dwLocalPort);
+            std::memcpy(entry.remoteAddress6, &row.ucRemoteAddr[0], 16);
+            entry.remotePort = ConvertPort(row.dwRemotePort);
+            entry.state = static_cast<std::uint8_t>(row.dwState);
+            entry.owningProcessId = row.dwOwningPid;
+            snapshot.connections_.push_back(entry);
+        }
+
+        // IPv6 UDP
+        for (const auto &row : udp6Rows)
+        {
+            ConnectionEntry entry{};
+            entry.protocol = TransportProtocol::Udp;
+            entry.addressFamily = AddressFamily::IPv6;
+            std::memcpy(entry.localAddress6, &row.ucLocalAddr[0], 16);
             entry.localPort = ConvertPort(row.dwLocalPort);
             entry.owningProcessId = row.dwOwningPid;
             snapshot.connections_.push_back(entry);
@@ -143,11 +217,15 @@ namespace rvrse::core
                       {
                           return lhs.protocol < rhs.protocol;
                       }
-                      if (lhs.localAddress != rhs.localAddress)
+                      if (lhs.addressFamily != rhs.addressFamily)
                       {
-                          return lhs.localAddress < rhs.localAddress;
+                          return static_cast<int>(lhs.addressFamily) < static_cast<int>(rhs.addressFamily);
                       }
-                      return lhs.localPort < rhs.localPort;
+                      if (lhs.localPort != rhs.localPort)
+                      {
+                          return lhs.localPort < rhs.localPort;
+                      }
+                      return lhs.remotePort < rhs.remotePort;
                   });
 
         return snapshot;

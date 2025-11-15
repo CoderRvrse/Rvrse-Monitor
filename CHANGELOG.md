@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file. The format 
 - CI automation that uploads release zips and publishes GitHub releases whenever a tag (`v*`) is pushed.
 - Real-time CPU and memory graphs inside the summary pane, fed by live system telemetry.
 - Module viewer window that surfaces every DLL loaded by the selected process complete with base address, size, and path metadata.
-- Per-process network connections viewer built on a new `NetworkSnapshot` capture that enumerates IPv4 TCP/UDP endpoints (with graceful elevation detection and user feedback).
+- Per-process network connections viewer built on a new `NetworkSnapshot` capture that enumerates **IPv4 and IPv6** TCP/UDP endpoints with dual-stack support, proper address formatting ([addr]:port for IPv6), and graceful elevation detection.
 - Driver scaffold (shared IOCTL contract, user-mode interface, kernel skeleton) so privileged telemetry can plug in incrementally.
 
 ### Changed
