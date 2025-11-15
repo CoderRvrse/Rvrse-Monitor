@@ -155,35 +155,121 @@ Rvrse Monitor/
 - [x] Automated release packaging
 - [x] UNC path normalization
 
-### 🚧 In Progress - Network Connections View (HIGH PRIORITY)
+### ✅ COMPLETED - Tier 3: Network Connections View (IPv4 + IPv6)
 
-**When working on this feature, tell Claude Code: "Use the todo list to track this"**
+**Status:** ✅ COMPLETE - Commit `3b6b592`
+**Performance:** NetworkSnapshot avg 0.25ms (target <10ms) ✅
 
-#### Task Breakdown:
-- [ ] Design network connection data structures and API
-- [ ] Implement TCP/UDP connection enumeration using GetExtendedTcpTable/GetExtendedUdpTable
-- [ ] Add NetworkSnapshot class for capturing connection state
-- [ ] Create network connections UI viewer (similar to modules viewer)
-- [ ] Add network connection filtering and sorting
-- [ ] Update telemetry system to include network snapshot timing
-- [ ] Add unit tests for network enumeration
+Features delivered:
+- [x] IPv4 TCP/UDP enumeration via GetExtendedTcpTable/GetExtendedUdpTable
+- [x] IPv6 TCP/UDP enumeration with dual-stack support
+- [x] Per-process connection filtering and sorting
+- [x] UI viewer with [addr]:port IPv6 formatting
+- [x] 7-test suite with BenchmarkNetworkSnapshot
+- [x] Performance telemetry integration
 
-**Example request to Claude Code:**
+**Current Parity:** 60% Process Hacker 2 feature parity
+
+---
+
+### 🚧 Next: Tier 4 Quick Wins (HIGH PRIORITY)
+
+These are high-impact, lower-effort features to reach 75% parity in Month 1.
+
+#### Feature 1: Kill/Terminate Process (2-3 days)
+**Priority:** ⭐⭐⭐ CRITICAL - #1 user request
+
+**Prompt for Claude Code:**
 ```
-"I need to implement the Network Connections View feature.
+"Implement the Kill/Terminate Process feature.
 
 Requirements:
-- Design NetworkConnectionEntry and NetworkSnapshot classes
-- Implement TCP enumeration using GetExtendedTcpTable (IPv4 + IPv6)
-- Implement UDP enumeration using GetExtendedUdpTable (IPv4 + IPv6)
-- Add 'Network...' button to main UI
-- Display connections in sortable list (Protocol, Local/Remote Address, State, PID)
-- Add per-process filtering
-- Write unit tests for enumeration and filtering
-- Update telemetry to track NetworkSnapshot performance (<10ms target)
+- Add right-click context menu to process list
+- 'Terminate' option using TerminateProcess() API
+- 'Terminate Process Tree' option (kills all child processes)
+- Confirmation dialog before terminating
+- Error handling for protected processes (System, csrss, etc.)
+- Success/failure feedback messages
+- Add unit tests for process tree enumeration
 
 Use the todo list to track all these tasks."
 ```
+
+**Expected Impact:** Highest user value, essential feature
+
+---
+
+#### Feature 2: Search/Filter Box (1-2 days)
+**Priority:** ⭐⭐⭐ HIGH - Essential usability
+
+**Prompt for Claude Code:**
+```
+"Implement the Search/Filter Box feature.
+
+Requirements:
+- Add text box at top of main window
+- Filter process list by name (case-insensitive substring match)
+- Real-time filtering (as user types)
+- Clear button (X icon)
+- ESC key clears filter
+- Show 'Filtered: X of Y processes' in status bar
+- Highlight matching processes
+- Add unit tests for filtering logic
+
+Use the todo list to track all these tasks."
+```
+
+**Expected Impact:** Improves usability significantly
+
+---
+
+#### Feature 3: Process Tree View (3-5 days)
+**Priority:** ⭐⭐⭐ HIGH - Core diagnostic feature
+
+**Prompt for Claude Code:**
+```
+"Implement the Process Tree View feature.
+
+Requirements:
+- Track parent PID during ProcessSnapshot
+- Build hierarchical tree structure (std::map<PID, vector<PID>>)
+- Display as expandable/collapsible tree (TreeView control or indented ListView)
+- Show parent-child relationships with visual hierarchy
+- Detect orphaned processes (parent terminated)
+- Add icons for parent vs leaf processes
+- Context menu on tree nodes
+- Add unit tests for tree building logic
+
+Use the todo list to track all these tasks."
+```
+
+**Expected Impact:** Differentiates from Task Manager, core feature
+
+---
+
+#### Feature 4: System Information Panel (1-2 days)
+**Priority:** ⭐⭐ MEDIUM - Contextual awareness
+
+**Prompt for Claude Code:**
+```
+"Implement the System Information Panel.
+
+Requirements:
+- Overall CPU usage (%)
+- Physical memory used/total (GB)
+- Commit charge (paged pool)
+- System uptime
+- Kernel/User mode CPU split
+- Handle count (system-wide)
+- Thread count (system-wide)
+- Panel at top or side of main window
+- Update every 1-2 seconds
+- Use GetSystemTimes(), GlobalMemoryStatusEx(), GetTickCount64()
+
+Use the todo list to track all these tasks."
+```
+
+**Expected Impact:** Provides system context for all monitoring
 
 ### 📋 Planned (Tier 3+)
 - [ ] Kernel driver enhancements

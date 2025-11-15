@@ -77,75 +77,26 @@ HandleSnapshot avg: 19.50 ms
 
 ---
 
-## 🎯 Your First Task: Network Connections View
+## 🎯 STATUS: Tier 3 COMPLETE ✅
 
-This is your **starting point**. It's a complete feature with a clear roadmap.
+**Network Connections View (IPv4 + IPv6) is LIVE!**
 
-### What You'll Build
-
-A network monitoring feature that shows:
-- All TCP/UDP connections on the system
-- Connection details: Protocol, Local/Remote Address, Port, State, PID, Process Name
-- Per-process filtering
-- IPv4 and IPv6 support
-- Performance target: <10ms snapshot time
-
-### How to Start
-
-**Say this to Claude Code:**
-
-```
-"I need to implement the Network Connections View feature.
-
-Requirements:
-- Design NetworkConnectionEntry and NetworkSnapshot classes
-- Implement TCP enumeration using GetExtendedTcpTable (IPv4 + IPv6)
-- Implement UDP enumeration using GetExtendedUdpTable (IPv4 + IPv6)
-- Add 'Network...' button to main UI
-- Display connections in sortable list (Protocol, Local/Remote Address, State, PID)
-- Add per-process filtering
-- Write unit tests for enumeration and filtering
-- Update telemetry to track NetworkSnapshot performance (<10ms target)
-
-Use the todo list to track all these tasks."
-```
-
-### What Claude Will Do
-
-Claude Code will:
-1. ✅ Create a 7-task todo list
-2. ✅ Implement each task step-by-step
-3. ✅ Mark tasks complete as it finishes them
-4. ✅ Run validation before committing
-
-You can check progress anytime by saying: **"Show me the current todo list"**
-
-### Before You Push
-
-**CRITICAL:** Run this validation script before every push:
-
-```powershell
-.\scripts\validate_before_push.ps1
-```
-
-This checks:
-- ✅ Debug and Release builds succeed
-- ✅ All unit tests pass
-- ✅ Performance metrics acceptable
-- ✅ No secrets in commits
-- ✅ Binary size reasonable
-
-**Only push if validation passes!**
+Commit: `3b6b592` on main branch
+Performance: 0.25ms (target <10ms) 🔥
+Current Parity: 60% Process Hacker 2
 
 ---
 
-## 📋 After Network Connections: Next 3 Features
+## 🚀 YOUR FIRST TASK: Tier 4 Quick Wins
 
-Once Network Connections is complete, move to these **quick wins** in order:
+This is your **starting point**. Four high-impact, lower-effort features to reach 75% parity.
 
-### Feature 2: Kill/Terminate Process (2-3 days)
+### Feature 1: Kill/Terminate Process ⭐⭐⭐ START HERE (2-3 days)
 
-**Prompt for Claude Code:**
+**Most requested feature by users!**
+
+**Say this to Claude Code:**
+
 ```
 "Implement the Kill/Terminate Process feature.
 
@@ -161,11 +112,9 @@ Requirements:
 Use the todo list to track all these tasks."
 ```
 
-**Impact:** #1 most requested feature by users
-
 ---
 
-### Feature 3: Search/Filter Box (1-2 days)
+### Feature 2: Search/Filter Box (1-2 days)
 
 **Prompt for Claude Code:**
 ```
@@ -188,7 +137,7 @@ Use the todo list to track all these tasks."
 
 ---
 
-### Feature 4: Process Tree View (3-5 days)
+### Feature 3: Process Tree View (3-5 days)
 
 **Prompt for Claude Code:**
 ```
@@ -208,6 +157,43 @@ Use the todo list to track all these tasks."
 ```
 
 **Impact:** Core diagnostic feature, differentiates from Task Manager
+
+---
+
+### Feature 4: System Information Panel (1-2 days)
+
+**Prompt for Claude Code:**
+```
+"Implement the System Information Panel.
+
+Requirements:
+- Overall CPU usage (%)
+- Physical memory used/total (GB)
+- Commit charge (paged pool)
+- System uptime
+- Kernel/User mode CPU split
+- Handle count (system-wide)
+- Thread count (system-wide)
+- Panel at top or side of main window
+- Update every 1-2 seconds
+- Use GetSystemTimes(), GlobalMemoryStatusEx(), GetTickCount64()
+
+Use the todo list to track all these tasks."
+```
+
+**Impact:** Provides system context for intelligent monitoring
+
+---
+
+## 📊 Tier 4 Summary
+
+| Feature | Effort | Impact | Priority | Est. Days |
+|---------|--------|--------|----------|-----------|
+| Kill/Terminate | Low | CRITICAL | ⭐⭐⭐ | 2-3 |
+| Search/Filter | Low | High | ⭐⭐⭐ | 1-2 |
+| Process Tree | Medium | High | ⭐⭐⭐ | 3-5 |
+| System Info | Low | Medium | ⭐⭐ | 1-2 |
+| **Total** | **Low-Medium** | **75% parity** | - | **7-12 days** |
 
 ---
 
