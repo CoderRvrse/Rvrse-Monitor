@@ -43,6 +43,14 @@ namespace
     constexpr int kClearFilterButtonId = 0x3007;
     constexpr int kMenuTerminateId = 0x4001;
     constexpr int kMenuTerminateTreeId = 0x4002;
+    constexpr int kMenuSuspendId = 0x4003;
+    constexpr int kMenuResumeId = 0x4004;
+    constexpr int kMenuPriorityRealtimeId = 0x4010;
+    constexpr int kMenuPriorityHighId = 0x4011;
+    constexpr int kMenuPriorityAboveNormalId = 0x4012;
+    constexpr int kMenuPriorityNormalId = 0x4013;
+    constexpr int kMenuPriorityBelowNormalId = 0x4014;
+    constexpr int kMenuPriorityLowId = 0x4015;
 
     class ResourceGraphView
     {
@@ -1236,6 +1244,38 @@ class ModuleViewerWindow
             {
                 TerminateSelectedProcess(true);
             }
+            else if (controlId == kMenuSuspendId)
+            {
+                SuspendSelectedProcess();
+            }
+            else if (controlId == kMenuResumeId)
+            {
+                ResumeSelectedProcess();
+            }
+            else if (controlId == kMenuPriorityRealtimeId)
+            {
+                SetSelectedProcessPriority(REALTIME_PRIORITY_CLASS);
+            }
+            else if (controlId == kMenuPriorityHighId)
+            {
+                SetSelectedProcessPriority(HIGH_PRIORITY_CLASS);
+            }
+            else if (controlId == kMenuPriorityAboveNormalId)
+            {
+                SetSelectedProcessPriority(ABOVE_NORMAL_PRIORITY_CLASS);
+            }
+            else if (controlId == kMenuPriorityNormalId)
+            {
+                SetSelectedProcessPriority(NORMAL_PRIORITY_CLASS);
+            }
+            else if (controlId == kMenuPriorityBelowNormalId)
+            {
+                SetSelectedProcessPriority(BELOW_NORMAL_PRIORITY_CLASS);
+            }
+            else if (controlId == kMenuPriorityLowId)
+            {
+                SetSelectedProcessPriority(IDLE_PRIORITY_CLASS);
+            }
         }
 
         bool OnNotify(LPARAM lParam)
@@ -1748,6 +1788,23 @@ class ModuleViewerWindow
 
             AppendMenuW(menu, MF_STRING, kMenuTerminateId, L"&Terminate Process");
             AppendMenuW(menu, MF_STRING, kMenuTerminateTreeId, L"Terminate Process &Tree");
+            AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+            AppendMenuW(menu, MF_STRING, kMenuSuspendId, L"&Suspend Process");
+            AppendMenuW(menu, MF_STRING, kMenuResumeId, L"&Resume Process");
+            AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+
+            // Create priority submenu
+            HMENU priorityMenu = CreatePopupMenu();
+            if (priorityMenu)
+            {
+                AppendMenuW(priorityMenu, MF_STRING, kMenuPriorityRealtimeId, L"&Realtime");
+                AppendMenuW(priorityMenu, MF_STRING, kMenuPriorityHighId, L"&High");
+                AppendMenuW(priorityMenu, MF_STRING, kMenuPriorityAboveNormalId, L"&Above Normal");
+                AppendMenuW(priorityMenu, MF_STRING, kMenuPriorityNormalId, L"&Normal");
+                AppendMenuW(priorityMenu, MF_STRING, kMenuPriorityBelowNormalId, L"&Below Normal");
+                AppendMenuW(priorityMenu, MF_STRING, kMenuPriorityLowId, L"&Low");
+                AppendMenuW(menu, MF_STRING | MF_POPUP, reinterpret_cast<UINT_PTR>(priorityMenu), L"Set &Priority");
+            }
 
             TrackPopupMenu(menu, TPM_RIGHTBUTTON, cursorPos.x, cursorPos.y, 0, hwnd_, nullptr);
             DestroyMenu(menu);
@@ -1878,6 +1935,239 @@ class ModuleViewerWindow
                     CollectChildProcesses(proc.processId, pids);
                 }
             }
+        }
+
+        void SuspendSelectedProcess()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            int selectedIndex = ListView_GetNextItem(listView_, -1, LVNI_SELECTED);
+            if (selectedIndex < 0 || selectedIndex >= static_cast<int>(visibleProcesses_.size()))
+            {
+                return;
+            }
+
+            const auto &process = visibleProcesses_[selectedIndex];
+            std::uint32_t pid = process.processId;
+
+            // Suspend all threads in the process
+            int suspendedCount = 0;
+            int failedCount = 0;
+
+            for (const auto &thread : process.threads)
+            {
+                HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread.threadId);
+                if (hThread)
+                {
+                    if (SuspendThread(hThread) != static_cast<DWORD>(-1))
+                    {
+                        ++suspendedCount;
+                    }
+                    else
+                    {
+                        ++failedCount;
+                    }
+                    CloseHandle(hThread);
+                }
+                else
+                {
+                    ++failedCount;
+                }
+            }
+
+            wchar_t message[256];
+            if (suspendedCount > 0)
+            {
+                StringCchPrintfW(message, std::size(message),
+                                 L"Suspended %d threads in process '%s' (PID %u).",
+                                 suspendedCount,
+                                 process.imageName.c_str(),
+                                 pid);
+                MessageBoxW(hwnd_, message, rvrse::kProductName, MB_OK | MB_ICONINFORMATION);
+            }
+            else
+            {
+                StringCchPrintfW(message, std::size(message),
+                                 L"Failed to suspend process '%s' (PID %u).\nNo threads could be suspended.",
+                                 process.imageName.c_str(),
+                                 pid);
+                MessageBoxW(hwnd_, message, rvrse::kProductName, MB_OK | MB_ICONWARNING);
+            }
+
+            RefreshProcesses();
+        }
+
+        void ResumeSelectedProcess()
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            int selectedIndex = ListView_GetNextItem(listView_, -1, LVNI_SELECTED);
+            if (selectedIndex < 0 || selectedIndex >= static_cast<int>(visibleProcesses_.size()))
+            {
+                return;
+            }
+
+            const auto &process = visibleProcesses_[selectedIndex];
+            std::uint32_t pid = process.processId;
+
+            // Resume all threads in the process
+            int resumedCount = 0;
+            int failedCount = 0;
+
+            for (const auto &thread : process.threads)
+            {
+                HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, thread.threadId);
+                if (hThread)
+                {
+                    if (ResumeThread(hThread) != static_cast<DWORD>(-1))
+                    {
+                        ++resumedCount;
+                    }
+                    else
+                    {
+                        ++failedCount;
+                    }
+                    CloseHandle(hThread);
+                }
+                else
+                {
+                    ++failedCount;
+                }
+            }
+
+            wchar_t message[256];
+            if (resumedCount > 0)
+            {
+                StringCchPrintfW(message, std::size(message),
+                                 L"Resumed %d threads in process '%s' (PID %u).",
+                                 resumedCount,
+                                 process.imageName.c_str(),
+                                 pid);
+                MessageBoxW(hwnd_, message, rvrse::kProductName, MB_OK | MB_ICONINFORMATION);
+            }
+            else
+            {
+                StringCchPrintfW(message, std::size(message),
+                                 L"Failed to resume process '%s' (PID %u).\nNo threads could be resumed.",
+                                 process.imageName.c_str(),
+                                 pid);
+                MessageBoxW(hwnd_, message, rvrse::kProductName, MB_OK | MB_ICONWARNING);
+            }
+
+            RefreshProcesses();
+        }
+
+        void SetSelectedProcessPriority(DWORD priorityClass)
+        {
+            if (!listView_)
+            {
+                return;
+            }
+
+            int selectedIndex = ListView_GetNextItem(listView_, -1, LVNI_SELECTED);
+            if (selectedIndex < 0 || selectedIndex >= static_cast<int>(visibleProcesses_.size()))
+            {
+                return;
+            }
+
+            const auto &process = visibleProcesses_[selectedIndex];
+            std::uint32_t pid = process.processId;
+
+            // Map priority class to readable name
+            const wchar_t *priorityName = L"Unknown";
+            if (priorityClass == REALTIME_PRIORITY_CLASS)
+                priorityName = L"Realtime";
+            else if (priorityClass == HIGH_PRIORITY_CLASS)
+                priorityName = L"High";
+            else if (priorityClass == ABOVE_NORMAL_PRIORITY_CLASS)
+                priorityName = L"Above Normal";
+            else if (priorityClass == NORMAL_PRIORITY_CLASS)
+                priorityName = L"Normal";
+            else if (priorityClass == BELOW_NORMAL_PRIORITY_CLASS)
+                priorityName = L"Below Normal";
+            else if (priorityClass == IDLE_PRIORITY_CLASS)
+                priorityName = L"Low";
+
+            // Confirm before changing priority
+            wchar_t confirmMsg[256];
+            StringCchPrintfW(confirmMsg, std::size(confirmMsg),
+                             L"Set priority of '%s' (PID %u) to %s?",
+                             process.imageName.c_str(),
+                             pid,
+                             priorityName);
+
+            int result = MessageBoxW(hwnd_, confirmMsg, rvrse::kProductName, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
+            if (result != IDYES)
+            {
+                return;
+            }
+
+            // Open the process with PROCESS_SET_INFORMATION access
+            HANDLE hProcess = OpenProcess(PROCESS_SET_INFORMATION, FALSE, pid);
+            if (!hProcess)
+            {
+                DWORD error = GetLastError();
+                wchar_t errorMsg[256];
+                if (error == ERROR_ACCESS_DENIED)
+                {
+                    StringCchPrintfW(errorMsg, std::size(errorMsg),
+                                     L"Access denied when trying to set priority for '%s' (PID %u).\n\nYou may need administrator privileges.",
+                                     process.imageName.c_str(),
+                                     pid);
+                }
+                else
+                {
+                    StringCchPrintfW(errorMsg, std::size(errorMsg),
+                                     L"Failed to open process '%s' (PID %u).\nError code: %lu",
+                                     process.imageName.c_str(),
+                                     pid,
+                                     error);
+                }
+                MessageBoxW(hwnd_, errorMsg, rvrse::kProductName, MB_OK | MB_ICONWARNING);
+                return;
+            }
+
+            // Set the priority
+            if (SetPriorityClass(hProcess, priorityClass))
+            {
+                wchar_t successMsg[256];
+                StringCchPrintfW(successMsg, std::size(successMsg),
+                                 L"Successfully set priority of '%s' (PID %u) to %s.",
+                                 process.imageName.c_str(),
+                                 pid,
+                                 priorityName);
+                MessageBoxW(hwnd_, successMsg, rvrse::kProductName, MB_OK | MB_ICONINFORMATION);
+                RefreshProcesses();
+            }
+            else
+            {
+                DWORD error = GetLastError();
+                wchar_t errorMsg[256];
+                if (error == ERROR_ACCESS_DENIED)
+                {
+                    StringCchPrintfW(errorMsg, std::size(errorMsg),
+                                     L"Access denied when setting priority for '%s' (PID %u).\n\nRealtime priority requires administrator privileges.",
+                                     process.imageName.c_str(),
+                                     pid);
+                }
+                else
+                {
+                    StringCchPrintfW(errorMsg, std::size(errorMsg),
+                                     L"Failed to set priority for '%s' (PID %u).\nError code: %lu",
+                                     process.imageName.c_str(),
+                                     pid,
+                                     error);
+                }
+                MessageBoxW(hwnd_, errorMsg, rvrse::kProductName, MB_OK | MB_ICONWARNING);
+            }
+
+            CloseHandle(hProcess);
         }
 
         std::wstring FormatProcessDetails(const rvrse::core::ProcessEntry &process) const

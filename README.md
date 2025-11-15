@@ -28,7 +28,10 @@ See `docs/build/local-project.md` for full details once populated.
 
 - Live process grid with sorting and handle/thread summaries.
 - **Real-time search/filter** (text box in toolbar) with case-insensitive process name matching, PID filtering, clear button, and visual feedback showing filtered count.
-- **Process termination controls** (right-click any process) with single process or full process tree termination, confirmation dialogs, and error handling for protected system processes.
+- **Process control via right-click context menu:**
+  - **Terminate** - Kill single process or entire process tree with confirmation dialogs
+  - **Suspend/Resume** - Thread-based suspension to freeze/unfreeze any process
+  - **Set Priority** - Adjust process priority (Realtime, High, Above Normal, Normal, Below Normal, Low) with confirmation and privilege checks
 - Module viewer window (double-click a process or click **Modules...**) that lists every loaded DLL with base address, image size, and full path.
 - **Network connections explorer** (click **Connections...**) with full IPv4 and IPv6 support that shows TCP/UDP endpoints per process with live connection state (ESTABLISHED, LISTEN, etc.) and properly formatted endpoint details including IPv6 bracket notation ([addr]:port). Performance optimized with <10ms snapshot time for dual-stack enumeration (requires elevation to inspect system-wide sockets).
 - Real-time CPU and memory graphs rendered with GDI, updating alongside the 4 s snapshot cadence so you can spot spikes instantly.

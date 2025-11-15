@@ -36,6 +36,22 @@ All notable changes to this project will be documented in this file. The format 
   - Clear button to quickly reset filter and show all processes
   - Visual feedback in summary panel showing "Showing X of Y processes" when filtered
   - Automatic whitespace trimming for better search accuracy
+- **Suspend/Resume Process** with thread-based suspension:
+  - Suspend and Resume options in right-click context menu
+  - Thread-based suspension using `SuspendThread()` API with THREAD_SUSPEND_RESUME access
+  - Resume functionality using `ResumeThread()` API
+  - Iterates through all threads in the target process for complete suspension/resume
+  - Success/failure feedback showing number of threads suspended/resumed
+  - Error handling for access denied scenarios
+  - Automatic process list refresh after operation
+- **Process Priority Control** with confirmation dialogs:
+  - Set Priority submenu in right-click context menu with 6 priority levels
+  - Priority options: Realtime, High, Above Normal, Normal, Below Normal, Low
+  - Uses `SetPriorityClass()` API with PROCESS_SET_INFORMATION access
+  - Confirmation dialog before changing priority with readable priority names
+  - Error handling for insufficient privileges (Realtime requires administrator)
+  - Clear feedback messages for success and failure scenarios
+  - Automatic process list refresh after successful priority change
 - Driver scaffold (shared IOCTL contract, user-mode interface, kernel skeleton) so privileged telemetry can plug in incrementally.
 - Claude Code SessionStart hook for automatic development environment setup
 - Comprehensive Claude Code development guide with todo list best practices
