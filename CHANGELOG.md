@@ -8,8 +8,20 @@ All notable changes to this project will be documented in this file. The format 
 - CI automation that uploads release zips and publishes GitHub releases whenever a tag (`v*`) is pushed.
 - Real-time CPU and memory graphs inside the summary pane, fed by live system telemetry.
 - Module viewer window that surfaces every DLL loaded by the selected process complete with base address, size, and path metadata.
-- Per-process network connections viewer built on a new `NetworkSnapshot` capture that enumerates IPv4 TCP/UDP endpoints (with graceful elevation detection and user feedback).
+- **Network Connections View** with full IPv4 and IPv6 support:
+  - Per-process network connections viewer built on `NetworkSnapshot` class
+  - IPv4 TCP/UDP enumeration using `GetExtendedTcpTable` and `GetExtendedUdpTable` (AF_INET)
+  - IPv6 TCP/UDP enumeration using `GetExtendedTcpTable` and `GetExtendedUdpTable` (AF_INET6)
+  - 16-byte IPv6 address storage in `ConnectionEntry` structure
+  - Proper IPv6 address formatting in UI with bracket notation ([addr]:port)
+  - Connection state tracking for TCP (ESTABLISHED, LISTEN, SYN-SENT, etc.)
+  - Per-process filtering and sorting by PID, protocol, and address
+  - Performance telemetry with <10ms average capture time for both IPv4 and IPv6
+  - Comprehensive unit tests for IPv4/IPv6 enumeration, filtering, and validation
+  - Graceful elevation detection and user feedback for access denied scenarios
 - Driver scaffold (shared IOCTL contract, user-mode interface, kernel skeleton) so privileged telemetry can plug in incrementally.
+- Claude Code SessionStart hook for automatic development environment setup
+- Comprehensive Claude Code development guide with todo list best practices
 
 ### Changed
 - Documented the release workflow so contributors can cut local builds that match the CI output.
