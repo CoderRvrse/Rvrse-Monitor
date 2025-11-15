@@ -31,7 +31,6 @@
 namespace
 {
     int g_failures = 0;
-    bool g_isCI = false;
     LARGE_INTEGER g_qpcFrequency{};
     std::wstring g_perfExportPath;
     std::wstring g_buildConfiguration;
@@ -95,11 +94,7 @@ namespace
         auto count = snapshot.ConnectionCountForProcess(currentPid);
         if (count != forCurrent.size())
         {
-            // In CI or restricted environments, connection enumeration might be limited
-            if (!g_isCI)
-            {
-                ReportFailure(L"ConnectionCountForProcess did not match the number of filtered entries.");
-            }
+            ReportFailure(L"ConnectionCountForProcess did not match the number of filtered entries.");
         }
 
         // Test 4: IPv4 connections should have valid address family
@@ -276,13 +271,8 @@ namespace
 
     void ReportFailure(const wchar_t *message)
     {
-        // In CI mode, log failures but don't count them as test failures
-        // This allows tests to detect issues without failing the entire test suite
-        if (!g_isCI)
-        {
-            ++g_failures;
-        }
-        std::fwprintf(stderr, L"[WARN] %s\n", message);
+        ++g_failures;
+        std::fwprintf(stderr, L"[FAIL] %s\n", message);
     }
 
     template <typename Callable>
@@ -469,11 +459,7 @@ namespace
         auto snapshot = rvrse::core::ProcessSnapshot::Capture();
         if (snapshot.Processes().empty())
         {
-            // In CI or restricted environments, process snapshot might be limited
-            if (!g_isCI)
-            {
-                ReportFailure(L"Process snapshot returned zero processes.");
-            }
+            ReportFailure(L"Process snapshot returned zero processes.");
             return;
         }
 
@@ -494,23 +480,13 @@ namespace
 
         if (!foundSelf)
         {
-            // In CI or restricted environments, current process might not be visible
-            if (!g_isCI)
-            {
-                ReportFailure(L"Current process was not present in snapshot.");
-            }
-            return;
+            ReportFailure(L"Current process was not present in snapshot.");
         }
 
         auto modules = rvrse::core::ProcessSnapshot::EnumerateModules(currentPid);
         if (modules.empty())
         {
-            // In CI or restricted environments, module enumeration might be limited
-            if (!g_isCI)
-            {
-                ReportFailure(L"Enumerating modules for current process returned zero entries.");
-            }
-            return;
+            ReportFailure(L"Enumerating modules for current process returned zero entries.");
         }
         else
         {
@@ -532,11 +508,7 @@ namespace
         auto snapshot = rvrse::core::ProcessSnapshot::Capture();
         if (snapshot.Processes().empty())
         {
-            // In CI or restricted environments, process snapshot might be limited
-            if (!g_isCI)
-            {
-                ReportFailure(L"Process snapshot returned zero processes for edge-case coverage.");
-            }
+            ReportFailure(L"Process snapshot returned zero processes for edge-case coverage.");
             return;
         }
 
@@ -596,33 +568,25 @@ namespace
 
         if (threadEntryTotal == 0)
         {
-            // In CI or restricted environments, thread enumeration might be limited
-            if (!g_isCI)
-            {
-                ReportFailure(L"Thread enumeration returned zero entries.");
-            }
+            ReportFailure(L"Thread enumeration returned zero entries.");
         }
     }
 
     void TestHandleSnapshot()
     {
-        // Note: Handle enumeration may fail in non-elevated contexts (e.g., GitHub Actions CI)
-        // This test validates that HandleSnapshot can be created without crashing, even if
-        // the actual handle enumeration is limited by privileges
         auto handles = rvrse::core::HandleSnapshot::Capture();
-
-        // If handles were enumerated, validate basic functionality
-        if (!handles.Handles().empty())
+        if (handles.Handles().empty())
         {
-            // Verify the handle list is not corrupted
-            for (const auto &h : handles.Handles())
-            {
-                // Just iterate to ensure data structure is valid
-                [[maybe_unused]] auto pid = h.processId;
-            }
+            ReportFailure(L"Handle snapshot returned zero handles.");
+            return;
         }
 
-        // Either way, the capture succeeded without crashing, so the test passes
+        DWORD pid = GetCurrentProcessId();
+        auto handleCount = handles.HandleCountForProcess(pid);
+        if (handleCount == 0)
+        {
+            ReportFailure(L"Handle snapshot did not include any handles for current process.");
+        }
     }
 
     void TestHandleSnapshotAccessDenied()
@@ -630,12 +594,7 @@ namespace
         auto handles = rvrse::core::HandleSnapshot::Capture();
         if (handles.Handles().empty())
         {
-            // In CI environments (non-elevated), handle enumeration may fail
-            // This is expected and not a test failure
-            if (!g_isCI)
-            {
-                ReportFailure(L"Handle snapshot returned zero handles for access coverage.");
-            }
+            ReportFailure(L"Handle snapshot returned zero handles for access coverage.");
             return;
         }
 
@@ -657,8 +616,7 @@ namespace
     void BenchmarkProcessSnapshot()
     {
         const int iterations = 5;
-        // Relax threshold in CI environments due to runner limitations
-        const double thresholdMs = g_isCI ? 500.0 : 150.0;
+        const double thresholdMs = 150.0;
         double averageMs = MeasureAverageMilliseconds(
             []()
             {
@@ -689,8 +647,7 @@ namespace
     void BenchmarkHandleSnapshot()
     {
         const int iterations = 5;
-        // Relax threshold in CI environments due to runner limitations
-        const double thresholdMs = g_isCI ? 500.0 : 200.0;
+        const double thresholdMs = 200.0;
         double averageMs = MeasureAverageMilliseconds(
             []()
             {
@@ -717,8 +674,7 @@ namespace
     void BenchmarkNetworkSnapshot()
     {
         const int iterations = 5;
-        // Relax threshold in CI environments due to runner limitations
-        const double thresholdMs = g_isCI ? 100.0 : 10.0;  // <10ms target for local, <100ms for CI
+        const double thresholdMs = 10.0;  // <10ms target for IPv4+IPv6 combined
         double averageMs = MeasureAverageMilliseconds(
             []()
             {
@@ -770,8 +726,7 @@ namespace
                       toUtf8Ms,
                       toWideMs);
 
-        // Relax threshold in CI environments due to runner limitations
-        const double thresholdMs = g_isCI ? 50.0 : 5.0;
+        const double thresholdMs = 5.0;
         const bool utf8Passed = toUtf8Ms <= thresholdMs;
         const bool widePassed = toWideMs <= thresholdMs;
 
@@ -803,119 +758,10 @@ namespace
         loader.BroadcastProcessSnapshot(snapshot);
         loader.BroadcastHandleSnapshot(handles);
     }
-
-    void TestProcessTreeEnumeration()
-    {
-        auto snapshot = rvrse::core::ProcessSnapshot::Capture();
-        const auto &processes = snapshot.Processes();
-
-        // Test 1: Parent PID should be populated for all processes
-        for (const auto &process : processes)
-        {
-            // All processes should have a parentProcessId set
-            // (System Idle Process PID 0 typically has parent PID 0)
-            // Most other processes have a valid parent PID
-            if (process.processId != 0 && process.parentProcessId == 0xFFFFFFFF)
-            {
-                ReportFailure(L"Process has invalid parent PID marker.");
-                break;
-            }
-        }
-
-        // Test 2: GetChildProcesses should return valid results
-        for (const auto &process : processes)
-        {
-            auto children = snapshot.GetChildProcesses(process.processId);
-            // Verify all returned children actually have this process as parent
-            for (std::uint32_t childPid : children)
-            {
-                bool found = false;
-                for (const auto &candidate : processes)
-                {
-                    if (candidate.processId == childPid && candidate.parentProcessId == process.processId)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    ReportFailure(L"GetChildProcesses returned a process that doesn't have the expected parent.");
-                    break;
-                }
-            }
-        }
-
-        // Test 3: CollectChildProcesses should return all descendants recursively
-        // Find a process with children for this test
-        for (const auto &process : processes)
-        {
-            std::vector<std::uint32_t> descendants;
-            snapshot.CollectChildProcesses(process.processId, descendants);
-
-            // Verify all descendants have correct lineage
-            for (std::uint32_t descendantPid : descendants)
-            {
-                bool found = false;
-                for (const auto &candidate : processes)
-                {
-                    if (candidate.processId == descendantPid)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    ReportFailure(L"CollectChildProcesses returned a PID that doesn't exist in process snapshot.");
-                    break;
-                }
-            }
-        }
-
-        // Test 4: Current process should be found with parent
-        DWORD currentPid = GetCurrentProcessId();
-        bool found = false;
-        for (const auto &process : processes)
-        {
-            if (process.processId == currentPid)
-            {
-                found = true;
-                // Verify parent PID is set (should be cmd.exe or similar)
-                if (process.parentProcessId == 0)
-                {
-                    // In CI or restricted environments, parent might not be accessible
-                    if (!g_isCI)
-                    {
-                        ReportFailure(L"Current process has no parent PID.");
-                    }
-                }
-                break;
-            }
-        }
-        if (!found)
-        {
-            // Current process might not be in snapshot (privilege issue)
-            // This is not necessarily a failure
-        }
-    }
 }
 
 int wmain(int argc, wchar_t **argv)
 {
-    // Default to CI mode (lenient) unless we definitively know we're local
-    // This ensures tests pass in restricted environments like GitHub Actions
-    g_isCI = true;
-
-    // Check if we're running locally (developer machine)
-    // Only set g_isCI = false if we have signs of a local developer environment
-    if (const wchar_t *userProfile = _wgetenv(L"USERPROFILE"))
-    {
-        // USERPROFILE typically exists on local machines
-        // GitHub Actions doesn't set this in the same way
-        // But we can't rely on this alone, so we keep g_isCI = true as default
-    }
-
     for (int i = 1; i < argc; ++i)
     {
         std::wstring argument = argv[i];
@@ -972,22 +818,14 @@ int wmain(int argc, wchar_t **argv)
     BenchmarkUtf8Conversion();
     TestPluginLoaderInitialization();
     TestNetworkSnapshot();
-    TestProcessTreeEnumeration();
     TestDriverInterface();
 
     ExportBenchmarkTelemetry();
 
-    if (g_failures == 0 || g_isCI)
+    if (g_failures == 0)
     {
-        if (g_failures == 0)
-        {
-            std::fwprintf(stdout, L"[PASS] All tests succeeded.\n");
-        }
-        else
-        {
-            std::fwprintf(stderr, L"[WARN] %d warnings logged in CI mode (not counted as failures).\n", g_failures);
-        }
-        return 0;  // Always succeed in CI mode to allow dev team to continue work
+        std::fwprintf(stdout, L"[PASS] All tests succeeded.\n");
+        return 0;
     }
 
     std::fwprintf(stderr, L"[FAIL] %d tests failed.\n", g_failures);
