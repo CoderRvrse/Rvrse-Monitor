@@ -8,6 +8,7 @@ A high-performance system monitor for Windows, built in native C++ with a focus 
 
 ### Core Capabilities
 - **Live Process Monitor** – Real-time process list with CPU, memory, and thread information
+- **System Information Panel** – Real-time system stats: CPU usage, memory (used/total), uptime, handles, threads
 - **Process Control Suite** – Right-click context menu for:
   - **Terminate** single processes or entire process trees
   - **Suspend/Resume** processes (thread-level suspension)

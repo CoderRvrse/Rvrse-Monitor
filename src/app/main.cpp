@@ -46,6 +46,7 @@ namespace
     constexpr int kClearFilterButtonId = 0x3007;
     constexpr int kTreeViewButtonId = 0x3008;
     constexpr int kTreeViewId = 0x3009;
+    constexpr int kSystemInfoStaticId = 0x300A;
     // Context menu IDs
     constexpr int kContextMenuTerminateProcess = 0x4001;
     constexpr int kContextMenuTerminateTree = 0x4002;
@@ -1161,6 +1162,20 @@ class ModuleViewerWindow
                 instance_,
                 nullptr);
 
+            systemInfoStatic_ = CreateWindowExW(
+                0,
+                L"STATIC",
+                nullptr,
+                WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                reinterpret_cast<HMENU>(kSystemInfoStaticId),
+                instance_,
+                nullptr);
+
             detailsStatic_ = CreateWindowExW(
                 0,
                 L"STATIC",
@@ -1205,6 +1220,10 @@ class ModuleViewerWindow
             if (treeView_)
             {
                 SendMessageW(treeView_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
+            if (systemInfoStatic_)
+            {
+                SendMessageW(systemInfoStatic_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
             }
             if (detailsStatic_)
             {
@@ -1559,6 +1578,7 @@ class ModuleViewerWindow
             const int connectionsButtonWidth = 130;
             const int buttonHeight = 26;
             const int padding = 10;
+            const int systemInfoHeight = 28;
             const int detailsHeight = 34;
             const int graphHeight = graphView_.IsCreated() ? 140 : 0;
             const int graphSpacing = graphHeight > 0 ? 8 : 0;
@@ -1601,6 +1621,14 @@ class ModuleViewerWindow
             }
 
             int graphBottom = detailsTop - graphSpacing;
+
+            // Position system info panel above graph
+            int systemInfoTop = graphBottom - graphHeight - (graphHeight > 0 ? 8 : 0) - systemInfoHeight;
+            if (systemInfoStatic_)
+            {
+                MoveWindow(systemInfoStatic_, padding, systemInfoTop, width - (padding * 2), systemInfoHeight, TRUE);
+                graphBottom = systemInfoTop - 8;
+            }
             if (graphView_.IsCreated())
             {
                 int graphTop = std::max(topBarHeight, graphBottom - graphHeight);
@@ -1774,6 +1802,13 @@ class ModuleViewerWindow
 
         void UpdateDetailsPanel()
         {
+            // Update system info panel
+            if (systemInfoStatic_)
+            {
+                SetWindowTextW(systemInfoStatic_, FormatSystemInfo().c_str());
+            }
+
+            // Update process details panel
             if (!detailsStatic_)
             {
                 return;
@@ -2403,6 +2438,47 @@ class ModuleViewerWindow
             return buffer;
         }
 
+        std::wstring FormatSystemInfo() const
+        {
+            // Get physical memory status
+            MEMORYSTATUSEX memStatus{};
+            memStatus.dwLength = sizeof(memStatus);
+            GlobalMemoryStatusEx(&memStatus);
+
+            double memoryUsedGB = static_cast<double>(memStatus.ullTotalPhys - memStatus.ullAvailPhys) / (1024.0 * 1024.0 * 1024.0);
+            double memoryTotalGB = static_cast<double>(memStatus.ullTotalPhys) / (1024.0 * 1024.0 * 1024.0);
+            double memoryPercent = static_cast<double>(memStatus.dwMemoryLoad);
+
+            // Get system uptime
+            ULONGLONG uptimeMs = GetTickCount64();
+            ULONGLONG uptimeDays = uptimeMs / (1000 * 60 * 60 * 24);
+            ULONGLONG uptimeHours = (uptimeMs / (1000 * 60 * 60)) % 24;
+            ULONGLONG uptimeMins = (uptimeMs / (1000 * 60)) % 60;
+
+            // Count total handles and threads
+            std::uint64_t totalHandles = 0;
+            std::uint64_t totalThreads = 0;
+            for (const auto &process : snapshot_.Processes())
+            {
+                totalHandles += handleSnapshot_.HandleCountForProcess(process.processId);
+                totalThreads += process.threadCount;
+            }
+
+            wchar_t buffer[512];
+            StringCchPrintfW(buffer, std::size(buffer),
+                           L"CPU: %.1f%% | Memory: %.1f GB / %.1f GB (%.0f%%) | Uptime: %llud %lluh %llum | Handles: %llu | Threads: %llu",
+                           cpuUsagePercent_,
+                           memoryUsedGB,
+                           memoryTotalGB,
+                           memoryPercent,
+                           uptimeDays,
+                           uptimeHours,
+                           uptimeMins,
+                           static_cast<unsigned long long>(totalHandles),
+                           static_cast<unsigned long long>(totalThreads));
+            return buffer;
+        }
+
         std::wstring FormatSummaryDetails() const
         {
             const auto totalProcesses = snapshot_.Processes().size();
@@ -2452,6 +2528,7 @@ class ModuleViewerWindow
         HWND treeViewButton_ = nullptr;
         HWND filterEdit_ = nullptr;
         HWND clearFilterButton_ = nullptr;
+        HWND systemInfoStatic_ = nullptr;
         HWND detailsStatic_ = nullptr;
         bool columnsCreated_ = false;
         bool showTreeView_ = false;

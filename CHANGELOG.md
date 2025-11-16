@@ -51,6 +51,15 @@ All notable changes to this project will be documented in this file. The format 
   - Display format: "ProcessName (PID)" for easy process identification.
   - Recursive tree population using existing `GetChildProcesses()` method.
   - Full process information preserved (same data as flat list view).
+- **System Information Panel (Tier 5 - Feature 2):**
+  - Dedicated panel showing system-wide statistics above the performance graphs.
+  - Real-time CPU usage percentage display.
+  - Physical memory stats: used/total in GB with percentage utilization.
+  - System uptime display in days, hours, and minutes format.
+  - System-wide handle count across all processes.
+  - System-wide thread count across all processes.
+  - Updates automatically every 4 seconds with process refresh cycle.
+  - Compact single-line format for maximum space efficiency.
 
 ### Changed
 - Documented the release workflow so contributors can cut local builds that match the CI output.
