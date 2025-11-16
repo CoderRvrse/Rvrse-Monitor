@@ -13,6 +13,7 @@ A high-performance system monitor for Windows, built in native C++ with a focus 
   - **Suspend/Resume** processes (thread-level suspension)
   - **Set Priority** across 6 levels (Realtime, High, Above Normal, Normal, Below Normal, Low)
 - **Real-time Search/Filter** – Instant filtering by process name or PID with visual feedback
+- **Process Tree View** – Hierarchical view of process parent-child relationships with expand/collapse
 - **Module Viewer** – Inspect all DLLs loaded by a process (base address, size, path)
 - **Network Connections** – View per-process network activity with IPv4/IPv6 support
 - **Performance Graphs** – Real-time CPU and memory utilization charts

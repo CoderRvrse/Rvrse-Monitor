@@ -42,6 +42,15 @@ All notable changes to this project will be documented in this file. The format 
   - Special privilege handling: Realtime priority requires administrator privileges with clear error messages.
   - Readable priority names in all dialogs and success messages.
   - Automatic process list refresh after successful priority changes.
+- **Process Tree View (Tier 5 - Feature 1):**
+  - Toggle button "Tree View" to switch between flat list and hierarchical process tree.
+  - Win32 TreeView control showing parent-child relationships with visual hierarchy.
+  - Root processes displayed at top level; descendants nested beneath parents.
+  - Automatic orphan process detection (processes with non-existent or invalid parent PID).
+  - Expand/collapse tree nodes with mouse clicks and keyboard navigation.
+  - Display format: "ProcessName (PID)" for easy process identification.
+  - Recursive tree population using existing `GetChildProcesses()` method.
+  - Full process information preserved (same data as flat list view).
 
 ### Changed
 - Documented the release workflow so contributors can cut local builds that match the CI output.

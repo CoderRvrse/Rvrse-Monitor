@@ -13,8 +13,10 @@
 #include <cwchar>
 #include <cwctype>
 #include <deque>
+#include <map>
 #include <memory>
 #include <numeric>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -42,6 +44,8 @@ namespace
     constexpr int kModulesButtonId = 0x3005;
     constexpr int kConnectionsButtonId = 0x3006;
     constexpr int kClearFilterButtonId = 0x3007;
+    constexpr int kTreeViewButtonId = 0x3008;
+    constexpr int kTreeViewId = 0x3009;
     // Context menu IDs
     constexpr int kContextMenuTerminateProcess = 0x4001;
     constexpr int kContextMenuTerminateTree = 0x4002;
@@ -1040,7 +1044,7 @@ class ModuleViewerWindow
             }
 
             INITCOMMONCONTROLSEX icex = {sizeof(icex)};
-            icex.dwICC = ICC_LISTVIEW_CLASSES;
+            icex.dwICC = ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES;
             InitCommonControlsEx(&icex);
 
             refreshButton_ = CreateWindowExW(
@@ -1113,6 +1117,20 @@ class ModuleViewerWindow
                 instance_,
                 nullptr);
 
+            treeViewButton_ = CreateWindowExW(
+                0,
+                L"BUTTON",
+                L"Tree View",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                reinterpret_cast<HMENU>(kTreeViewButtonId),
+                instance_,
+                nullptr);
+
             listView_ = CreateWindowExW(
                 WS_EX_CLIENTEDGE,
                 WC_LISTVIEWW,
@@ -1128,6 +1146,21 @@ class ModuleViewerWindow
                 nullptr);
 
             ListView_SetExtendedListViewStyle(listView_, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_GRIDLINES);
+
+            treeView_ = CreateWindowExW(
+                WS_EX_CLIENTEDGE,
+                WC_TREEVIEWW,
+                nullptr,
+                WS_CHILD | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS,
+                0,
+                0,
+                0,
+                0,
+                hwnd_,
+                reinterpret_cast<HMENU>(kTreeViewId),
+                instance_,
+                nullptr);
+
             detailsStatic_ = CreateWindowExW(
                 0,
                 L"STATIC",
@@ -1157,6 +1190,10 @@ class ModuleViewerWindow
             {
                 SendMessageW(connectionsButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
             }
+            if (treeViewButton_)
+            {
+                SendMessageW(treeViewButton_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
             if (filterEdit_)
             {
                 SendMessageW(filterEdit_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
@@ -1164,6 +1201,10 @@ class ModuleViewerWindow
             if (listView_)
             {
                 SendMessageW(listView_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
+            }
+            if (treeView_)
+            {
+                SendMessageW(treeView_, WM_SETFONT, reinterpret_cast<WPARAM>(defaultFont), TRUE);
             }
             if (detailsStatic_)
             {
@@ -1203,6 +1244,99 @@ class ModuleViewerWindow
             }
         }
 
+        void ToggleTreeView()
+        {
+            showTreeView_ = !showTreeView_;
+
+            if (showTreeView_)
+            {
+                // Hide ListView, show TreeView
+                if (listView_)
+                    ShowWindow(listView_, SW_HIDE);
+                if (treeView_)
+                    ShowWindow(treeView_, SW_SHOW);
+
+                // Populate TreeView
+                PopulateTreeView();
+            }
+            else
+            {
+                // Hide TreeView, show ListView
+                if (treeView_)
+                {
+                    ShowWindow(treeView_, SW_HIDE);
+                    TreeView_DeleteAllItems(treeView_);
+                }
+                if (listView_)
+                    ShowWindow(listView_, SW_SHOW);
+            }
+        }
+
+        void PopulateTreeView()
+        {
+            if (!treeView_)
+                return;
+
+            TreeView_DeleteAllItems(treeView_);
+
+            // Build a map of PID -> children PIDs
+            std::map<std::uint32_t, std::vector<std::uint32_t>> childrenMap;
+            std::set<std::uint32_t> allPids;
+            std::set<std::uint32_t> parentPids;
+
+            for (const auto &process : snapshot_.Processes())
+            {
+                allPids.insert(process.processId);
+                childrenMap[process.parentProcessId].push_back(process.processId);
+                parentPids.insert(process.parentProcessId);
+            }
+
+            // Find root processes (no valid parent or parent doesn't exist)
+            for (const auto &process : snapshot_.Processes())
+            {
+                if (process.parentProcessId == 0 || allPids.find(process.parentProcessId) == allPids.end())
+                {
+                    // This is a root process
+                    AddTreeNode(TVI_ROOT, process);
+                }
+            }
+        }
+
+        void AddTreeNode(HTREEITEM parentItem, const rvrse::core::ProcessEntry &process)
+        {
+            if (!treeView_)
+                return;
+
+            // Create display string with process name and PID
+            std::wstring displayName = process.imageName.empty() ? L"[Unnamed]" : process.imageName;
+            wchar_t nodeText[256];
+            StringCchPrintfW(nodeText, std::size(nodeText), L"%s (PID %u)", displayName.c_str(), process.processId);
+
+            // Insert tree item
+            TV_INSERTSTRUCTW tvis{};
+            tvis.hParent = parentItem;
+            tvis.hInsertAfter = TVI_LAST;
+            tvis.item.mask = TVIF_TEXT;
+            tvis.item.pszText = nodeText;
+            tvis.item.lParam = static_cast<LPARAM>(process.processId);
+
+            HTREEITEM hNode = TreeView_InsertItem(treeView_, &tvis);
+
+            // Recursively add child processes
+            auto children = snapshot_.GetChildProcesses(process.processId);
+            for (std::uint32_t childPid : children)
+            {
+                for (const auto &childProcess : snapshot_.Processes())
+                {
+                    if (childProcess.processId == childPid)
+                    {
+                        AddTreeNode(hNode, childProcess);
+                        break;
+                    }
+                }
+            }
+        }
+
         void OnCommand(int controlId, int code)
         {
             if (controlId == kRefreshButtonId && code == BN_CLICKED)
@@ -1224,6 +1358,10 @@ class ModuleViewerWindow
             else if (controlId == kConnectionsButtonId && code == BN_CLICKED)
             {
                 ShowConnectionsForSelection();
+            }
+            else if (controlId == kTreeViewButtonId && code == BN_CLICKED)
+            {
+                ToggleTreeView();
             }
         }
 
@@ -2307,13 +2445,16 @@ class ModuleViewerWindow
         HINSTANCE instance_;
         HWND hwnd_ = nullptr;
         HWND listView_ = nullptr;
+        HWND treeView_ = nullptr;
         HWND refreshButton_ = nullptr;
         HWND modulesButton_ = nullptr;
         HWND connectionsButton_ = nullptr;
+        HWND treeViewButton_ = nullptr;
         HWND filterEdit_ = nullptr;
         HWND clearFilterButton_ = nullptr;
         HWND detailsStatic_ = nullptr;
         bool columnsCreated_ = false;
+        bool showTreeView_ = false;
         rvrse::core::ProcessSnapshot snapshot_;
         rvrse::core::HandleSnapshot handleSnapshot_;
         rvrse::core::NetworkSnapshot networkSnapshot_;
